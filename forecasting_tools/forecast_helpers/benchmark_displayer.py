@@ -1,13 +1,10 @@
-"""
-Run this file as a streamlit app. `streamlit run scripts/benchmark_displayer.py`
-As long as your benchmark files (contain 'bench' and end in '.json')
-are in the project directory tree, you should be able to view them.
-"""
-
+import logging
 import os
+from typing import Sequence
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objs as go
 import streamlit as st
 import typeguard
 
@@ -15,14 +12,17 @@ from forecasting_tools.data_models.benchmark_for_bot import BenchmarkForBot
 from forecasting_tools.data_models.binary_report import BinaryReport
 from forecasting_tools.data_models.forecast_report import ForecastReport
 from forecasting_tools.util import file_manipulation
+from forecasting_tools.util.stats import ConfidenceIntervalCalculator
 from front_end.helpers.report_displayer import ReportDisplayer
+
+logger = logging.getLogger(__name__)
 
 
 def get_json_files(directory: str) -> list[str]:
     json_files = []
     for root, _, files in os.walk(directory):
         for file in files:
-            if file.endswith(".json") and "bench" in file:
+            if file.endswith(".json") and "bench" in file.lower():
                 full_path = os.path.join(root, file)
                 json_files.append(full_path)
     return sorted(json_files)
@@ -188,7 +188,11 @@ def get_benchmark_display_name(benchmark: BenchmarkForBot, index: int) -> str:
 
 
 def add_star_annotations(
-    fig: px.bar, df: pd.DataFrame, x_col: str, y_col: str, is_starred_col: str
+    fig: go.Figure,
+    df: pd.DataFrame,
+    x_col: str,
+    y_col: str,
+    is_starred_col: str,
 ) -> None:
     """Add star annotations to bars meeting the starred condition."""
     for idx, row in df[df[is_starred_col]].iterrows():
@@ -202,10 +206,34 @@ def add_star_annotations(
         )
 
 
+def calculate_expected_baseline_margin_of_error(
+    reports: Sequence[ForecastReport | BinaryReport], confidence_level: float
+) -> float | None:
+    scores = [r.expected_baseline_score for r in reports]
+    scores = typeguard.check_type(scores, list[float])
+    try:
+        margin_of_error = (
+            ConfidenceIntervalCalculator.confidence_interval_from_observations(
+                scores, confidence_level
+            ).margin_of_error
+        )
+    except Exception as e:
+        logger.error(f"Error calculating margin of error: {e}")
+        return None
+    return margin_of_error
+
+
 def display_benchmark_comparison_graphs(
     benchmarks: list[BenchmarkForBot],
 ) -> None:
     st.markdown("# Benchmark Score Comparisons")
+    st.markdown(
+        """
+        - Uncertain Question: Questions with community prediction between 10% and 90%
+        - Certain Question: Questions with community prediction greater than 90% or less than 10%
+        - Perfect predictor: automatically created and shows what a perfect score (predicting community prediction) would be.
+        """
+    )
     data_by_benchmark = []
 
     for index, benchmark in enumerate(benchmarks):
@@ -223,14 +251,17 @@ def display_benchmark_comparison_graphs(
             if r.community_prediction is not None
             and 0.1 <= r.community_prediction <= 0.9
         ]
+
+        reports = typeguard.check_type(reports, Sequence[BinaryReport])
         certain_reports = typeguard.check_type(
-            certain_reports, list[ForecastReport]
+            certain_reports, Sequence[BinaryReport]
         )
         uncertain_reports = typeguard.check_type(
-            uncertain_reports, list[ForecastReport]
+            uncertain_reports, Sequence[BinaryReport]
         )
 
         benchmark_name = get_benchmark_display_name(benchmark, index)
+        confidence_level = 0.90
 
         data_by_benchmark.extend(
             [
@@ -242,6 +273,9 @@ def display_benchmark_comparison_graphs(
                         reports
                     )
                     * 100,
+                    "Baseline Error": calculate_expected_baseline_margin_of_error(
+                        reports, confidence_level
+                    ),
                 },
                 {
                     "Benchmark": benchmark_name,
@@ -253,6 +287,9 @@ def display_benchmark_comparison_graphs(
                         certain_reports
                     )
                     * 100,
+                    "Baseline Error": calculate_expected_baseline_margin_of_error(
+                        certain_reports, confidence_level
+                    ),
                 },
                 {
                     "Benchmark": benchmark_name,
@@ -264,6 +301,9 @@ def display_benchmark_comparison_graphs(
                         uncertain_reports
                     )
                     * 100,
+                    "Baseline Error": calculate_expected_baseline_margin_of_error(
+                        uncertain_reports, confidence_level
+                    ),
                 },
             ]
         )
@@ -276,7 +316,12 @@ def display_benchmark_comparison_graphs(
 
         st.markdown("### Expected Baseline Scores")
         st.markdown(
-            "Higher score indicates better performance. Read more [here](https://www.metaculus.com/help/scores-faq/#:~:text=The%20Baseline%20score%20compares,probability%20to%20all%20outcomes.)"
+            "Higher score indicates better performance. Read more [here](https://www.metaculus.com/help/scores-faq/#:~:text=The%20Baseline%20score%20compares,probability%20to%20all%20outcomes.). "
+            "This is a proper score assuming the community prediction is the true probability. "
+            f"Error bars are for {confidence_level*100}% confidence interval. "
+            "If an error bar is 0, then the data probably violated the normality assumption for a T-based confidence interval when num_forecasts < 30. "
+            "Note that there are seasonal changes with the certinaty of questions (e.g. there are more certain questions near the end of the year). "
+            "'Certain' questions score better, so be careful of comparing benchmarks from different time periods. "
         )
 
         # Mark highest scores with stars (higher is better for baseline score)
@@ -292,6 +337,7 @@ def display_benchmark_comparison_graphs(
             color="Category",
             barmode="group",
             title="Expected Baseline Scores by Benchmark and Category",
+            error_y="Baseline Error",
         )
         fig.update_layout(yaxis_title="Expected Baseline Score")
 
@@ -303,7 +349,9 @@ def display_benchmark_comparison_graphs(
 
         st.markdown("### Deviation Scores")
         st.markdown(
-            "Lower score indicates predictions closer to community consensus. Shown as difference in percentage points between bot and community."
+            "Lower score indicates predictions closer to community consensus. "
+            "Shown as difference in percentage points between bot and community. "
+            "This is not a proper score and is less meaningful than the expected baseline score. However it is more intuitive."
         )
 
         # Mark lowest deviations with stars (lower is better for deviation score)
@@ -348,15 +396,40 @@ def make_perfect_benchmark(
         assert report.community_prediction is not None
         report.prediction = report.community_prediction
     perfect_benchmark.forecast_reports = reports_of_perfect_benchmark
-    perfect_benchmark.name = "Perfect Predictor (questions of benchmark 1)"
+    perfect_benchmark.explicit_name = (
+        "Perfect Predictor (questions of benchmark 1)"
+    )
     return perfect_benchmark
 
 
-def main() -> None:
+def run_benchmark_streamlit_page(
+    input: list[BenchmarkForBot] | str | None = None,
+) -> None:
+    """
+    Run this function as a streamlit app. `streamlit run file_running_this_function.py`
+
+    This function runs the benchmark streamlit page.
+    If input_benchmarks is provided, it will display the benchmarks passed in.
+    If input is a string, it will be treated as a folder path that contains benchmark JSON file.
+    Otherwise, it will display the benchmarks in the project directory.
+
+    Files containing "bench" in the name and ending in '.json' will be collected as benchmark files
+    from the project directory tree.
+    """
+
     st.title("Benchmark Viewer")
+
+    if isinstance(input, list):
+        display_benchmark_comparison_graphs(input)
+        display_benchmark_list(input)
+        return
+    elif isinstance(input, str):
+        project_directory = input
+    else:
+        project_directory = file_manipulation.get_absolute_path("")
+
     st.write("Select JSON files containing BenchmarkForBot objects.")
 
-    project_directory = file_manipulation.get_absolute_path("")
     json_files = get_json_files(project_directory)
 
     if not json_files:
@@ -401,4 +474,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    run_benchmark_streamlit_page()

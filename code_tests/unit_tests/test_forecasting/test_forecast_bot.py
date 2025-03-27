@@ -1,4 +1,6 @@
+import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -6,6 +8,7 @@ from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
     ForecastingTestManager,
     MockBot,
 )
+from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.data_models.forecast_report import ReasonedPrediction
 from forecasting_tools.data_models.questions import BinaryQuestion
 from forecasting_tools.forecast_bots.bot_lists import (
@@ -158,13 +161,15 @@ async def test_use_research_summary_for_forecast() -> None:
     summary = "Summary content"
     received_research = None
 
-    async def mock_research(*args, **kwargs):
+    async def mock_research(*args, **kwargs) -> str:
         return full_research
 
-    async def mock_summary(*args, **kwargs):
+    async def mock_summary(*args, **kwargs) -> str:
         return summary
 
-    async def mock_forecast(question: BinaryQuestion, research: str):
+    async def mock_forecast(
+        question: BinaryQuestion, research: str
+    ) -> ReasonedPrediction[float]:
         nonlocal received_research
         received_research = research
         return ReasonedPrediction(
@@ -176,7 +181,7 @@ async def test_use_research_summary_for_forecast() -> None:
     bot._run_forecast_on_binary = mock_forecast
 
     await bot.forecast_question(test_question)
-    assert received_research == summary
+    assert received_research == summary, "Research should be the summary"
 
 
 async def test_saves_reports_to_specified_folder(tmp_path: Path) -> None:
@@ -205,7 +210,7 @@ async def test_skip_previously_forecasted_questions() -> None:
 
     research_call_count = 0
 
-    async def count_research(*args, **kwargs):
+    async def count_research(*args, **kwargs) -> str:
         nonlocal research_call_count
         research_call_count += 1
         return "test research"
@@ -220,8 +225,116 @@ async def test_skip_previously_forecasted_questions() -> None:
 
 
 @pytest.mark.parametrize("bot", get_all_important_bot_classes())
-def test_bot_has_config(bot: type[ForecastBot]):
+def test_bot_has_config(bot: type[ForecastBot]) -> None:
     probable_minimum_number_of_bot_params = 3
     bot_config = bot().get_config()
     assert bot_config is not None
     assert len(bot_config.keys()) > probable_minimum_number_of_bot_params
+
+    # Verify config can be JSON serialized
+
+    try:
+        json.dumps(bot_config)
+    except Exception as e:
+        pytest.fail(f"Bot config is not JSON serializable: {e}")
+
+
+async def test_llm_returns_general_llm_when_llm_is_str() -> None:
+    bot = MockBot(llms={"default": "gpt-4o"})
+    assert isinstance(bot.get_llm("default"), str)
+
+
+async def test_get_llm_returns_correct_type_when_set() -> None:
+    bot = MockBot(
+        llms={
+            "default": "gpt-4o",
+            "summarizer": GeneralLlm(model="gpt-4o-mini", temperature=0.3),
+        }
+    )
+
+    str_llm = bot.get_llm("default")
+    general_llm = bot.get_llm("summarizer")
+    assert isinstance(str_llm, str)
+    assert isinstance(general_llm, GeneralLlm)
+
+    general_llm_2 = bot.get_llm("default", guarantee_type="llm")
+    str_llm_2 = bot.get_llm("summarizer", guarantee_type="string_name")
+    assert isinstance(general_llm_2, GeneralLlm)
+    assert isinstance(str_llm_2, str)
+
+    str_llm_3 = bot.get_llm("default", guarantee_type=None)
+    general_llm_3 = bot.get_llm("summarizer", guarantee_type=None)
+    assert isinstance(str_llm_3, str)
+    assert isinstance(general_llm_3, GeneralLlm)
+
+
+async def test_get_llm_returns_none_when_not_set() -> None:
+    bot = MockBot()
+    with pytest.raises(ValueError):
+        bot.get_llm("non_existent_llm")
+
+
+async def test_get_config_includes_default_llms_when_not_set() -> None:
+    bot = MockBot(
+        llms={
+            "default": "gpt-4o",
+            "summarizer": GeneralLlm(model="gpt-4o-mini", temperature=0.3),
+        }
+    )
+    config = bot.get_config()
+
+    llm_dict: dict[str, Any] = config["llms"]
+
+    assert "llms" in config
+    assert "default" in llm_dict
+    assert "summarizer" in llm_dict
+
+    assert llm_dict["default"] == "gpt-4o"
+    assert "temperature" in llm_dict["summarizer"]
+    assert "model" in llm_dict["summarizer"]
+
+
+async def test_get_llm_edge_case_behavior() -> None:
+    bot = MockBot()
+    non_existent_purpose = "non_existent_purpose"
+
+    # Should return None when guarantee_type is None
+    with pytest.raises(ValueError):
+        bot.get_llm(non_existent_purpose, guarantee_type=None)
+
+    # Should raise ValueError when guarantee_type is specified
+    with pytest.raises(Exception):
+        bot.get_llm(non_existent_purpose, guarantee_type="string_name")
+
+    with pytest.raises(Exception):
+        bot.get_llm(non_existent_purpose, guarantee_type="llm")
+
+
+async def test_default_used_for_missing_llm_key() -> None:
+    bot = MockBot(llms={})
+    assert bot.get_llm("default") is not None
+
+
+async def test_notepad_counts_research_and_prediction_attempts() -> None:
+    research_reports = 2
+    predictions_per_report = 3
+    bot = MockBot(
+        research_reports_per_question=research_reports,
+        predictions_per_research_report=predictions_per_report,
+    )
+    test_question = ForecastingTestManager.get_fake_binary_question()
+
+    async def mock_remove_notepad(*args, **kwargs) -> None:
+        # Do nothing
+        pass
+
+    bot._remove_notepad = mock_remove_notepad
+
+    await bot.forecast_question(test_question)
+    notepad = await bot._get_notepad(test_question)
+
+    assert notepad.num_research_reports_attempted == research_reports
+    assert (
+        notepad.num_predictions_attempted
+        == predictions_per_report * research_reports
+    )

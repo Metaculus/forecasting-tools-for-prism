@@ -29,17 +29,21 @@ from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
 logger = logging.getLogger(__name__)
 
 
-class Q1TemplateBot2025(ForecastBot):
+class Q2TemplateBot2025(ForecastBot):
     """
-    This is a copy of the template bot for Q1 2025 Metaculus AI Tournament.
-    The official bots on the leaderboard use AskNews in Q1.
+    This is a copy of the template bot for Q2 2025 Metaculus AI Tournament.
+    The official bots on the leaderboard use AskNews in Q2.
+    Main template bot changes since Q1
+    - Support for new units parameter was added
+    - You now set your llms when you initialize the bot (making it easier to switch between and benchmark different models)
 
     The main entry point of this bot is `forecast_on_tournament` in the parent class.
-    However generally the flow is:
+    See the script at the bottom of the file for more details on how to run the bot.
+    Ignoring the finer details, the general flow is:
     - Load questions from Metaculus
     - For each question
-        - Execute run_research for research_reports_per_question runs
-        - Execute respective run_forecast function for `predictions_per_research_report * research_reports_per_question` runs
+        - Execute run_research a number of times equal to research_reports_per_question
+        - Execute respective run_forecast function `predictions_per_research_report * research_reports_per_question` times
         - Aggregate the predictions
         - Submit prediction (if publish_reports_to_metaculus is True)
     - Return a list of ForecastReport objects
@@ -55,6 +59,7 @@ class Q1TemplateBot2025(ForecastBot):
     ) # Allows 1 request per second on average with a burst of 2 requests initially. Set this as a class variable
     await self.rate_limiter.wait_till_able_to_acquire_resources(1) # 1 because it's consuming 1 request (use more if you are adding a token limit)
     ```
+    Additionally OpenRouter has large rate limits immediately on account creation
     """
 
     _max_concurrent_questions = 2  # Set this to whatever works for your search-provider/ai-model rate limits
@@ -78,6 +83,9 @@ class Q1TemplateBot2025(ForecastBot):
                     question.question_text, use_open_router=True
                 )
             else:
+                logger.warning(
+                    f"No research provider found when processing question URL {question.page_url}. Will pass back empty string."
+                )
                 research = ""
             logger.info(
                 f"Found Research for URL {question.page_url}:\n{research}"
@@ -249,6 +257,7 @@ class Q1TemplateBot2025(ForecastBot):
 
             {question.fine_print}
 
+            Units for answer: {question.unit_of_measure if question.unit_of_measure else "Not stated (please infer this)"}
 
             Your research assistant says:
             {research}
@@ -259,7 +268,7 @@ class Q1TemplateBot2025(ForecastBot):
             {upper_bound_message}
 
             Formatting Instructions:
-            - Please notice the units requested (e.g. whether you represent a number as 1,000,000 or 1m).
+            - Please notice the units requested (e.g. whether you represent a number as 1,000,000 or 1 million).
             - Never use scientific notation.
             - Always start with a smaller number (more negative if negative) and then increase from there
 
@@ -316,6 +325,16 @@ class Q1TemplateBot2025(ForecastBot):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    # Suppress LiteLLM logging
+    litellm_logger = logging.getLogger("LiteLLM")
+    litellm_logger.setLevel(logging.WARNING)
+    litellm_logger.propagate = False
+
     parser = argparse.ArgumentParser(
         description="Run the Q1TemplateBot forecasting system"
     )
@@ -336,30 +355,37 @@ if __name__ == "__main__":
         "test_questions",
     ], "Invalid run mode"
 
-    template_bot = Q1TemplateBot2025(
+    template_bot = Q2TemplateBot2025(
         research_reports_per_question=1,
         predictions_per_research_report=5,
         use_research_summary_to_forecast=False,
         publish_reports_to_metaculus=True,
         folder_to_save_reports_to=None,
         skip_previously_forecasted_questions=True,
+        # llms={  # choose your model names or GeneralLlm llms here, otherwise defaults will be chosen for you
+        #     "default": GeneralLlm(
+        #         model="metaculus/anthropic/claude-3-5-sonnet-20241022",
+        #         temperature=0.3,
+        #         timeout=40,
+        #         allowed_tries=2,
+        #     ),
+        #     "summarizer": "openai/gpt-4o-mini",
+        # },
     )
 
     if run_mode == "tournament":
-        Q4_2024_AI_BENCHMARKING_ID = 32506
-        Q1_2025_AI_BENCHMARKING_ID = 32627
         forecast_reports = asyncio.run(
             template_bot.forecast_on_tournament(
-                Q1_2025_AI_BENCHMARKING_ID, return_exceptions=True
+                MetaculusApi.CURRENT_AI_COMPETITION_ID, return_exceptions=True
             )
         )
     elif run_mode == "quarterly_cup":
         # The quarterly cup is a good way to test the bot's performance on regularly open questions. You can also use AXC_2025_TOURNAMENT_ID = 32564
-        Q1_2025_QUARTERLY_CUP_ID = 32630
+        # The new quarterly cup may not be initialized near the beginning of a quarter
         template_bot.skip_previously_forecasted_questions = False
         forecast_reports = asyncio.run(
             template_bot.forecast_on_tournament(
-                Q1_2025_QUARTERLY_CUP_ID, return_exceptions=True
+                MetaculusApi.CURRENT_QUARTERLY_CUP_ID, return_exceptions=True
             )
         )
     elif run_mode == "test_questions":
@@ -377,4 +403,4 @@ if __name__ == "__main__":
         forecast_reports = asyncio.run(
             template_bot.forecast_questions(questions, return_exceptions=True)
         )
-    Q1TemplateBot2025.log_report_summary(forecast_reports)  # type: ignore
+    Q2TemplateBot2025.log_report_summary(forecast_reports)  # type: ignore

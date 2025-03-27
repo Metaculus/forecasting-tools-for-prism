@@ -76,6 +76,9 @@ from forecasting_tools.forecast_bots.main_bot import MainBot as MainBot
 from forecasting_tools.forecast_bots.official_bots.q1_template_bot import (
     Q1TemplateBot2025 as Q1TemplateBot2025,
 )
+from forecasting_tools.forecast_bots.official_bots.q2_template_bot import (
+    Q2TemplateBot2025 as Q2TemplateBot2025,
+)
 from forecasting_tools.forecast_bots.official_bots.q3_template_bot import (
     Q3TemplateBot2024 as Q3TemplateBot2024,
 )
@@ -87,6 +90,9 @@ from forecasting_tools.forecast_bots.template_bot import (
 )
 from forecasting_tools.forecast_helpers.asknews_searcher import (
     AskNewsSearcher as AskNewsSearcher,
+)
+from forecasting_tools.forecast_helpers.benchmark_displayer import (
+    run_benchmark_streamlit_page as run_benchmark_streamlit_page,
 )
 from forecasting_tools.forecast_helpers.benchmarker import (
     Benchmarker as Benchmarker,

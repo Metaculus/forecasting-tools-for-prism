@@ -5,7 +5,7 @@ import os
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Coroutine, Sequence, TypeVar, cast, overload
+from typing import Any, Coroutine, Literal, Sequence, TypeVar, cast, overload
 
 from exceptiongroup import ExceptionGroup
 from pydantic import BaseModel
@@ -42,16 +42,22 @@ T = TypeVar("T")
 logger = logging.getLogger(__name__)
 
 
-class ScratchPad(BaseModel):
+class NotePad(BaseModel):
     """
-    Context object that is available while forecasting on a question
+    Context object that is available while forecasting on a question and that persists
+    across multiple forecasts on the same question.
+
     You can keep tally's, todos, notes, or other organizational information here
     that other parts of the forecasting bot needs to access
 
-    You will want to inherit from this class to add additional attributes
+    You can inherit from this class to add additional attributes
+
+    A notepad for a question within a forecast bot can be obtained by calling `self._get_notepad(question)`
     """
 
     question: MetaculusQuestion
+    num_research_reports_attempted: int = 0
+    num_predictions_attempted: int = 0
     note_entries: dict[str, str] = {}
 
 
@@ -69,6 +75,7 @@ class ForecastBot(ABC):
         publish_reports_to_metaculus: bool = False,
         folder_to_save_reports_to: str | None = None,
         skip_previously_forecasted_questions: bool = False,
+        llms: dict[str, str | GeneralLlm] | None = None,
     ) -> None:
         assert (
             research_reports_per_question > 0
@@ -86,16 +93,24 @@ class ForecastBot(ABC):
         self.skip_previously_forecasted_questions = (
             skip_previously_forecasted_questions
         )
-        self._scratch_pads: list[ScratchPad] = []
-        self._scratch_pad_lock = asyncio.Lock()
+        self._note_pads: list[NotePad] = []
+        self._note_pad_lock = asyncio.Lock()
+        self._llms = llms or self._llm_config_defaults()
+        assert "default" in self._llms, "Must have a default llm"
 
-    def get_config(self) -> dict[str, str]:
-        params = inspect.signature(self.__init__).parameters
-        return {
-            name: str(getattr(self, name))
-            for name in params.keys()
-            if name != "self" and name != "kwargs" and name != "args"
-        }
+        for purpose, llm in self._llm_config_defaults().items():
+            if purpose not in self._llms:
+                logger.warning(
+                    f"User forgot to set an llm for purpose: '{purpose}'. Using default llm: '{llm}'"
+                )
+                self._llms[purpose] = llm
+
+        for purpose, llm in self._llms.items():
+            if purpose not in self._llm_config_defaults():
+                logger.warning(
+                    f"There is no default for llm: '{purpose}'."
+                    f"Please override and add it to the {self._llm_config_defaults.__name__} method"
+                )
 
     @overload
     async def forecast_on_tournament(
@@ -203,7 +218,7 @@ class ForecastBot(ABC):
         """
         Researches a question and returns markdown report
         """
-        raise NotImplementedError("Subclass must implement this method")
+        raise NotImplementedError("Subclass should implement this method")
 
     async def summarize_research(
         self, question: MetaculusQuestion, research: str
@@ -215,36 +230,47 @@ class ForecastBot(ABC):
         if len(research) < default_summary_size:
             return research
 
-        if os.getenv("OPENAI_API_KEY"):
-            model = GeneralLlm(model="gpt-4o-mini", temperature=0.3)
-        elif os.getenv("METACULUS_TOKEN"):
-            model = GeneralLlm(model="metaculus/gpt-4o-mini", temperature=0.3)
-        else:
-            return default_summary
-
+        final_summary = default_summary
         try:
+            model = self.get_llm("summarizer", "llm")
             prompt = clean_indents(
                 f"""
-                Please summarize the following research in 1-2 paragraphs. The report tries to help answer the following question:
+                Please summarize the following research in 1-2 paragraphs. The research tries to help answer the following question:
                 {question.question_text}
 
                 Only summarize the research. Do not answer the question. Just say what the research says w/o any opinions added.
-
-                If there are links in the research, please cite your sources using markdown links (copy the link exactly).
-                For instance if you want to cite www.example.com/news-headline, you should cite it as [example.com](www.example.com/news-headline).
-                Do not make up links.
+                At the end mention what websites/sources were used (and copy links verbatim if possible)
 
                 The research is:
                 {research}
                 """
             )
             summary = await model.invoke(prompt)
-            return summary
+            final_summary = summary
         except Exception as e:
             logger.debug(
                 f"Could not summarize research. Defaulting to first {default_summary_size} characters: {e}"
             )
-            return default_summary
+        return final_summary
+
+    def get_config(self) -> dict[str, Any]:
+        params = inspect.signature(self.__init__).parameters
+        config: dict[str, Any] = {
+            name: str(getattr(self, name))
+            for name in params.keys()
+            if name != "self"
+            and name != "kwargs"
+            and name != "args"
+            and name != "llms"
+        }
+        llm_dict: dict[str, str | dict[str, Any]] = {}
+        for key, value in self._llms.items():
+            if isinstance(value, GeneralLlm):
+                llm_dict[key] = value.to_dict()
+            else:
+                llm_dict[key] = value
+        config["llms"] = llm_dict
+        return config
 
     async def _run_individual_question_with_error_propagation(
         self, question: MetaculusQuestion
@@ -264,9 +290,9 @@ class ForecastBot(ABC):
     async def _run_individual_question(
         self, question: MetaculusQuestion
     ) -> ForecastReport:
-        scratchpad = await self._initialize_scratchpad(question)
-        async with self._scratch_pad_lock:
-            self._scratch_pads.append(scratchpad)
+        notepad = await self._initialize_notepad(question)
+        async with self._note_pad_lock:
+            self._note_pads.append(notepad)
         with MonetaryCostManager() as cost_manager:
             start_time = time.time()
             prediction_tasks = [
@@ -326,7 +352,7 @@ class ForecastBot(ABC):
         )
         if self.publish_reports_to_metaculus:
             await report.publish_report_to_metaculus()
-        await self._remove_scratchpad(question)
+        await self._remove_notepad(question)
         return report
 
     async def _aggregate_predictions(
@@ -352,6 +378,8 @@ class ForecastBot(ABC):
     async def _research_and_make_predictions(
         self, question: MetaculusQuestion
     ) -> ResearchWithPredictions[PredictionTypes]:
+        notepad = await self._get_notepad(question)
+        notepad.num_research_reports_attempted += 1
         research = await self.run_research(question)
         summary_report = await self.summarize_research(question, research)
         research_to_use = (
@@ -360,25 +388,10 @@ class ForecastBot(ABC):
             else research
         )
 
-        if isinstance(question, BinaryQuestion):
-            forecast_function = lambda q, r: self._run_forecast_on_binary(q, r)
-        elif isinstance(question, MultipleChoiceQuestion):
-            forecast_function = (
-                lambda q, r: self._run_forecast_on_multiple_choice(q, r)
-            )
-        elif isinstance(question, NumericQuestion):
-            forecast_function = lambda q, r: self._run_forecast_on_numeric(
-                q, r
-            )
-        elif isinstance(question, DateQuestion):
-            raise NotImplementedError("Date questions not supported yet")
-        else:
-            raise ValueError(f"Unknown question type: {type(question)}")
-
         tasks = cast(
             list[Coroutine[Any, Any, ReasonedPrediction[Any]]],
             [
-                forecast_function(question, research_to_use)
+                self._make_prediction(question, research_to_use)
                 for _ in range(self.predictions_per_research_report)
             ],
         )
@@ -400,11 +413,35 @@ class ForecastBot(ABC):
             predictions=valid_predictions,
         )
 
+    async def _make_prediction(
+        self, question: MetaculusQuestion, research: str
+    ) -> ReasonedPrediction[PredictionTypes]:
+        notepad = await self._get_notepad(question)
+        notepad.num_predictions_attempted += 1
+
+        if isinstance(question, BinaryQuestion):
+            forecast_function = lambda q, r: self._run_forecast_on_binary(q, r)
+        elif isinstance(question, MultipleChoiceQuestion):
+            forecast_function = (
+                lambda q, r: self._run_forecast_on_multiple_choice(q, r)
+            )
+        elif isinstance(question, NumericQuestion):
+            forecast_function = lambda q, r: self._run_forecast_on_numeric(
+                q, r
+            )
+        elif isinstance(question, DateQuestion):
+            raise NotImplementedError("Date questions not supported yet")
+        else:
+            raise ValueError(f"Unknown question type: {type(question)}")
+
+        prediction = await forecast_function(question, research)
+        return prediction  # type: ignore
+
     @abstractmethod
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str
     ) -> ReasonedPrediction[float]:
-        raise NotImplementedError("Subclass must implement this method")
+        raise NotImplementedError("Subclass should implement this method")
 
     @abstractmethod
     async def _run_forecast_on_multiple_choice(
@@ -579,32 +616,32 @@ class ForecastBot(ABC):
         else:
             raise type(exception)(f"{message}: {exception}") from exception
 
-    async def _initialize_scratchpad(
+    async def _initialize_notepad(
         self, question: MetaculusQuestion
-    ) -> ScratchPad:
-        new_scratchpad = ScratchPad(question=question)
-        return new_scratchpad
+    ) -> NotePad:
+        new_notepad = NotePad(question=question)
+        return new_notepad
 
-    async def _remove_scratchpad(self, question: MetaculusQuestion) -> None:
-        async with self._scratch_pad_lock:
-            self._scratch_pads = [
-                scratchpad
-                for scratchpad in self._scratch_pads
-                if scratchpad.question != question
+    async def _remove_notepad(self, question: MetaculusQuestion) -> None:
+        async with self._note_pad_lock:
+            self._note_pads = [
+                notepad
+                for notepad in self._note_pads
+                if notepad.question != question
             ]
 
-    async def _get_scratchpad(self, question: MetaculusQuestion) -> ScratchPad:
-        async with self._scratch_pad_lock:
-            for scratchpad in self._scratch_pads:
-                if scratchpad.question == question:
-                    return scratchpad
+    async def _get_notepad(self, question: MetaculusQuestion) -> NotePad:
+        async with self._note_pad_lock:
+            for notepad in self._note_pads:
+                if notepad.question == question:
+                    return notepad
         raise ValueError(
-            f"No scratchpad found for question: ID: {question.id_of_post} Text: {question.question_text}"
+            f"No notepad found for question: ID: {question.id_of_post} Text: {question.question_text}"
         )
 
     @staticmethod
     def log_report_summary(
-        forecast_reports: list[ForecastReport | BaseException],
+        forecast_reports: Sequence[ForecastReport | BaseException],
     ) -> None:
         valid_reports = [
             report
@@ -620,23 +657,133 @@ class ForecastBot(ABC):
             report.errors for report in valid_reports if report.errors
         ]
 
+        full_summary = ""
         for report in valid_reports:
             question_summary = clean_indents(
                 f"""
                 URL: {report.question.page_url}
                 Errors: {report.errors}
-                Summary:
+                <<<<<<<<<<<<<<<<<<<< Summary >>>>>>>>>>>>>>>>>>>>>
                 {report.summary}
-                ---------------------------------------------------------
+
+                <<<<<<<<<<<<<<<<<<<< First Rationales >>>>>>>>>>>>>>>>>>>>>
+                {report.forecast_rationales.split("##")[1][:10000]}
+                -------------------------------------------------------------------------------------------
             """
             )
-            logger.info(question_summary)
+            full_summary += question_summary + "\n"
 
-        if exceptions:
-            raise RuntimeError(
-                f"{len(exceptions)} errors occurred while forecasting: {exceptions}"
-            )
+        for report in forecast_reports:
+            if isinstance(report, ForecastReport):
+                short_summary = f"✅ URL: {report.question.page_url} | Minor Errors: {len(report.errors)}"
+            else:
+                exception_message = (
+                    str(report)
+                    if len(str(report)) < 1000
+                    else f"{str(report)[:500]}...{str(report)[-500:]}"
+                )
+                short_summary = f"❌ Exception: {report.__class__.__name__} | Message: {exception_message}"
+            full_summary += short_summary + "\n"
+        logger.info(full_summary)
+
         if minor_exceptions:
             logger.error(
                 f"{len(minor_exceptions)} minor exceptions occurred while forecasting: {minor_exceptions}"
             )
+        if exceptions:
+            raise RuntimeError(
+                f"{len(exceptions)} errors occurred while forecasting: {exceptions}"
+            )
+
+    @overload
+    def get_llm(
+        self,
+        purpose: str = "default",
+        guarantee_type: None = None,
+    ) -> str | GeneralLlm: ...
+
+    @overload
+    def get_llm(
+        self,
+        purpose: str = "default",
+        guarantee_type: Literal["llm"] = "llm",
+    ) -> GeneralLlm: ...
+
+    @overload
+    def get_llm(
+        self,
+        purpose: str = "default",
+        guarantee_type: Literal["string_name"] = "string_name",
+    ) -> str: ...
+
+    def get_llm(
+        self,
+        purpose: str = "default",
+        guarantee_type: Literal["llm", "string_name"] | None = None,
+    ) -> GeneralLlm | str:
+        if purpose not in self._llms:
+            raise ValueError(
+                f"Unknown llm requested from llm dict for purpose: '{purpose}'"
+            )
+
+        llm = self._llms[purpose]
+        return_value = None
+
+        if guarantee_type is None:
+            return_value = llm
+        elif guarantee_type == "llm":
+            if isinstance(llm, GeneralLlm):
+                return_value = llm
+            else:
+                return_value = GeneralLlm(model=llm)
+        elif guarantee_type == "string_name":
+            if isinstance(llm, str):
+                return_value = llm
+            else:
+                return_value = llm.model
+        else:
+            raise ValueError(f"Unknown guarantee_type: {guarantee_type}")
+
+        return return_value
+
+    @classmethod
+    def _llm_config_defaults(cls) -> dict[str, str | GeneralLlm]:
+        """
+        Returns a dictionary of default llms for the bot.
+        The keys are the purpose of the llm and the values are the llms (model name or GeneralLlm object).
+        Consider adding:
+        - researcher
+        - reasoner
+        - etc.
+        """
+
+        if os.getenv("OPENAI_API_KEY"):
+            main_default_llm = GeneralLlm(model="gpt-4o", temperature=0.3)
+        elif os.getenv("ANTHROPIC_API_KEY"):
+            main_default_llm = GeneralLlm(
+                model="claude-3-5-sonnet-20241022", temperature=0.3
+            )
+        elif os.getenv("OPENROUTER_API_KEY"):
+            main_default_llm = GeneralLlm(
+                model="openrouter/openai/gpt-4o", temperature=0.3
+            )
+        elif os.getenv("METACULUS_TOKEN"):
+            main_default_llm = GeneralLlm(
+                model="metaculus/gpt-4o", temperature=0.3
+            )
+        else:
+            main_default_llm = GeneralLlm(model="gpt-4o", temperature=0.3)
+
+        if os.getenv("OPENAI_API_KEY"):
+            summarizer = GeneralLlm(model="gpt-4o-mini", temperature=0.3)
+        elif os.getenv("METACULUS_TOKEN"):
+            summarizer = GeneralLlm(
+                model="metaculus/gpt-4o-mini", temperature=0.3
+            )
+        else:
+            summarizer = GeneralLlm(model="gpt-4o-mini", temperature=0.3)
+
+        return {
+            "default": main_default_llm,
+            "summarizer": summarizer,
+        }

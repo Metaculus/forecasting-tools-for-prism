@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 class Benchmarker:
     """
+    This class is used to benchmark a list of forecast bots
+    by comparing their predictions to the community prediction on a set of questions.
+
     For an idea of how many questions are 'enough' to test with read:
     https://forum.effectivealtruism.org/posts/DzqSh7akX28JEHf9H/comparing-two-forecasters-in-an-ideal-world
 
@@ -90,14 +93,14 @@ class Benchmarker:
                 )
                 source_code = None
             benchmark = BenchmarkForBot(
+                forecast_bot_class_name=bot.__class__.__name__,
                 forecast_reports=[],
                 forecast_bot_config=bot.get_config(),
-                description=f"This benchmark ran the {bot.__class__.__name__} bot on {self.number_of_questions_to_use} questions.",
-                name=f"{bot.__class__.__name__}",
                 time_taken_in_minutes=None,
                 total_cost=None,
                 git_commit_hash=self._get_git_commit_hash(),
                 code=source_code,
+                num_input_questions=len(chosen_questions),
             )
             benchmarks.append(benchmark)
 
@@ -128,7 +131,10 @@ class Benchmarker:
                         valid_reports,
                         list[ReportTypes],
                     )
-                    benchmark.forecast_reports.extend(valid_reports)
+                    new_report_sequence = (
+                        list(benchmark.forecast_reports) + valid_reports
+                    )
+                    benchmark.forecast_reports = new_report_sequence
                     self._save_benchmarks_to_file_if_configured(benchmarks)
                 end_time = time.time()
                 benchmark.time_taken_in_minutes = (end_time - start_time) / 60

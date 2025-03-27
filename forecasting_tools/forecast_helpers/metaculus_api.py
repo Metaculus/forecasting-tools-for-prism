@@ -33,17 +33,20 @@ class MetaculusApi:
     Documentation for the API can be found at https://www.metaculus.com/api/
     """
 
+    # NOTE: The tourament slug can be used for ID as well (e.g. "aibq2" or "quarterly-cup")
     AI_WARMUP_TOURNAMENT_ID = (
         3294  # https://www.metaculus.com/tournament/ai-benchmarking-warmup/
     )
     AI_COMPETITION_ID_Q3 = 3349  # https://www.metaculus.com/tournament/aibq3/
     AI_COMPETITION_ID_Q4 = 32506  # https://www.metaculus.com/tournament/aibq4/
     AI_COMPETITION_ID_Q1 = 32627  # https://www.metaculus.com/tournament/aibq1/
+    AI_COMPETITION_ID_Q2 = 32721  # https://www.metaculus.com/tournament/aibq2/
     ACX_2025_TOURNAMENT = 32564
     Q3_2024_QUARTERLY_CUP = 3366
     Q4_2024_QUARTERLY_CUP = 3672
     Q1_2025_QUARTERLY_CUP = 32630
-    CURRENT_QUARTERLY_CUP_ID = Q1_2025_QUARTERLY_CUP
+    CURRENT_QUARTERLY_CUP_ID = "quarterly-cup"
+    CURRENT_AI_COMPETITION_ID = AI_COMPETITION_ID_Q2
 
     API_BASE_URL = "https://www.metaculus.com/api"
     MAX_QUESTIONS_FROM_QUESTION_API_PER_REQUEST = 100
@@ -220,7 +223,12 @@ class MetaculusApi:
         METACULUS_TOKEN = os.getenv("METACULUS_TOKEN")
         if METACULUS_TOKEN is None:
             raise ValueError("METACULUS_TOKEN environment variable not set")
-        return {"headers": {"Authorization": f"Token {METACULUS_TOKEN}"}}
+        return {
+            "headers": {
+                "Authorization": f"Token {METACULUS_TOKEN}",
+                "Accept-Language": "en",
+            }
+        }
 
     @classmethod
     def _post_question_prediction(

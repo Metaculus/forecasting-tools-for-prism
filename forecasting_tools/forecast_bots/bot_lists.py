@@ -6,6 +6,9 @@ from forecasting_tools.forecast_bots.community.q1_veritas_bot import (
 from forecasting_tools.forecast_bots.community.q4_veritas_bot import (
     Q4VeritasBot,
 )
+from forecasting_tools.forecast_bots.community.uniform_probability_bot import (
+    UniformProbabilityBot,
+)
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 from forecasting_tools.forecast_bots.main_bot import MainBot
 from forecasting_tools.forecast_bots.official_bots.q1_template_bot import (
@@ -33,11 +36,12 @@ def get_all_important_bot_classes() -> list[type[ForecastBot]]:
         Q4TemplateBot2024,
         Q4VeritasBot,
         Q1VeritasBot,
+        UniformProbabilityBot,
     ]
 
 
 def get_all_bots_for_doing_cheap_tests() -> list[ForecastBot]:
-    return [TemplateBot()]
+    return [TemplateBot(), UniformProbabilityBot()]
 
 
 def get_all_bot_question_type_pairs_for_cheap_tests() -> (

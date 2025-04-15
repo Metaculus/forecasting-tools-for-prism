@@ -77,6 +77,12 @@ class GeneralLlm(
         "claude-3-5-sonnet": {
             "timeout": 40,
         },
+        "gemini-2.5-pro-preview": {
+            "timeout": 60,
+        },
+        "gemini-2.0-flash": {
+            "timeout": 60,
+        },
         "deepseek/": {
             "timeout": 80,
         },
@@ -162,7 +168,7 @@ class GeneralLlm(
             assert (
                 self.litellm_kwargs.get("extra_headers") is None
             ), "extra_headers should not be set if use_metaculus_proxy is True"
-            if "claude" in self._litellm_model:
+            if "claude" in self.model or "anthropic" in self.model:
                 self.litellm_kwargs["base_url"] = (
                     "https://llm-proxy.metaculus.com/proxy/anthropic"
                 )

@@ -113,6 +113,10 @@ class ForecastBot(ABC):
                     f"Please override and add it to the {self._llm_config_defaults.__name__} method"
                 )
 
+        logger.debug(
+            f"LLMs at initialization for bot are: {self.make_llm_dict()}"
+        )
+
     @overload
     async def forecast_on_tournament(
         self,
@@ -273,14 +277,18 @@ class ForecastBot(ABC):
             except Exception:
                 config[name] = str(value)
 
+        llm_dict = self.make_llm_dict()
+        config["llms"] = llm_dict
+        return config
+
+    def make_llm_dict(self) -> dict[str, str | dict[str, Any]]:
         llm_dict: dict[str, str | dict[str, Any]] = {}
         for key, value in self._llms.items():
             if isinstance(value, GeneralLlm):
                 llm_dict[key] = value.to_dict()
             else:
                 llm_dict[key] = value
-        config["llms"] = llm_dict
-        return config
+        return llm_dict
 
     async def _run_individual_question_with_error_propagation(
         self, question: MetaculusQuestion
@@ -504,7 +512,7 @@ class ForecastBot(ABC):
             # SUMMARY
             *Question*: {question.question_text}
             *Final Prediction*: {report_type.make_readable_prediction(aggregated_prediction)}
-            *Total Cost*: ${round(final_cost,2)}
+            *Total Cost*: ${round(final_cost,4)}
             *Time Spent*: {round(time_spent_in_minutes, 2)} minutes
 
             {combined_summaries}
@@ -652,6 +660,7 @@ class ForecastBot(ABC):
     @staticmethod
     def log_report_summary(
         forecast_reports: Sequence[ForecastReport | BaseException],
+        raise_errors: bool = True,
     ) -> None:
         valid_reports = [
             report
@@ -676,7 +685,7 @@ class ForecastBot(ABC):
                 <<<<<<<<<<<<<<<<<<<< Summary >>>>>>>>>>>>>>>>>>>>>
                 {report.summary}
 
-                <<<<<<<<<<<<<<<<<<<< First Rationales >>>>>>>>>>>>>>>>>>>>>
+                <<<<<<<<<<<<<<<<<<<< First Rationale >>>>>>>>>>>>>>>>>>>>>
                 {report.forecast_rationales.split("##")[1][:10000]}
                 -------------------------------------------------------------------------------------------
             """
@@ -694,14 +703,41 @@ class ForecastBot(ABC):
                 )
                 short_summary = f"❌ Exception: {report.__class__.__name__} | Message: {exception_message}"
             full_summary += short_summary + "\n"
+
+        total_cost = sum(
+            report.price_estimate if report.price_estimate else 0
+            for report in valid_reports
+        )
+        average_minutes = (
+            (
+                sum(
+                    report.minutes_taken if report.minutes_taken else 0
+                    for report in valid_reports
+                )
+                / len(valid_reports)
+            )
+            if valid_reports
+            else 0
+        )
+        average_cost = total_cost / len(valid_reports) if valid_reports else 0
+        full_summary += "\nStats for passing reports:\n"
+        full_summary += f"Total cost estimated: ${total_cost:.5f}\n"
+        full_summary += f"Average cost per question: ${average_cost:.5f}\n"
+        full_summary += (
+            f"Average time spent per question: {average_minutes:.4f} minutes\n"
+        )
         logger.info(full_summary)
 
         if minor_exceptions:
             logger.error(
                 f"{len(minor_exceptions)} minor exceptions occurred while forecasting: {minor_exceptions}"
             )
-        if exceptions:
+        if exceptions and raise_errors:
             raise RuntimeError(
+                f"{len(exceptions)} errors occurred while forecasting: {exceptions}"
+            )
+        else:
+            logger.warning(
                 f"{len(exceptions)} errors occurred while forecasting: {exceptions}"
             )
 
@@ -756,6 +792,11 @@ class ForecastBot(ABC):
 
         return return_value
 
+    def set_llm(self, llm: GeneralLlm | str, purpose: str = "default") -> None:
+        if purpose not in self._llms:
+            raise ValueError(f"Unknown llm purpose: {purpose}")
+        self._llms[purpose] = llm
+
     @classmethod
     def _llm_config_defaults(cls) -> dict[str, str | GeneralLlm]:
         """
@@ -771,7 +812,7 @@ class ForecastBot(ABC):
             main_default_llm = GeneralLlm(model="gpt-4o", temperature=0.3)
         elif os.getenv("ANTHROPIC_API_KEY"):
             main_default_llm = GeneralLlm(
-                model="claude-3-5-sonnet-20241022", temperature=0.3
+                model="claude-3-7-sonnet-latest", temperature=0.3
             )
         elif os.getenv("OPENROUTER_API_KEY"):
             main_default_llm = GeneralLlm(

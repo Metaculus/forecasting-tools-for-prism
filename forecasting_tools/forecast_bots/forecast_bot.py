@@ -382,8 +382,9 @@ class ForecastBot(ABC):
             raise ValueError("Cannot aggregate empty list of predictions")
         prediction_types = {type(pred) for pred in predictions}
         if len(prediction_types) > 1:
-            raise TypeError(
-                f"All predictions must be of the same type. Found types: {prediction_types}"
+            logger.warning(
+                f"Predictions have different types. Types: {prediction_types}. "
+                "This may cause problems when aggregating."
             )
         report_type = DataOrganizer.get_report_type_for_question_type(
             type(question)
@@ -676,7 +677,7 @@ class ForecastBot(ABC):
             report.errors for report in valid_reports if report.errors
         ]
 
-        full_summary = ""
+        full_summary = "\n"
         for report in valid_reports:
             question_summary = clean_indents(
                 f"""

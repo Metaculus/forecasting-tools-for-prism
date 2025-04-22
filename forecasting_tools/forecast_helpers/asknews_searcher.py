@@ -9,11 +9,19 @@ from typing import Any, AsyncGenerator, Dict, List, Literal, Optional, Union
 from urllib.parse import quote, urlencode
 
 import httpx
+from asknews_sdk import AsyncAskNewsSDK
+from asknews_sdk.dto.deepnews import CreateDeepNewsResponse
 from httpx import Auth, Request
 
 # NOTE: Until there is more need for asknews endpoints, this is a custom implementation
 # That does not use the SDK. As of Feb 1 2025 there were dependency conflicts
-# due to asknews dependencies
+# due to asknews dependencies conflicting with most recent cryptography version
+# updates have left this version in place for simplicity
+
+
+# NOTE: More information available here:
+# https://docs.asknews.app/en/news
+# https://docs.asknews.app/en/deepnews
 
 
 @dataclass
@@ -80,6 +88,32 @@ class OAuth2ClientCredentials(Auth):
 
 
 class AskNewsSearcher:
+    _default_search_depth = 2
+    _default_max_depth = 2
+
+    def __init__(
+        self,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
+    ) -> None:
+        self.client_id = client_id or os.getenv("ASKNEWS_CLIENT_ID")
+        self.client_secret = client_secret or os.getenv("ASKNEWS_SECRET")
+        self.base_url = "https://api.asknews.app/v1"
+        self.token_url = "https://auth.asknews.app/oauth2/token"
+
+        if not self.client_id or not self.client_secret:
+            raise ValueError("ASKNEWS_CLIENT_ID or ASKNEWS_SECRET is not set")
+
+        self.auth = OAuth2ClientCredentials(
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            token_url=self.token_url,
+        )
+        self.sdk = AsyncAskNewsSDK(
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            scopes={"chat", "news", "stories", "analytics"},
+        )
 
     def get_formatted_news(self, query: str) -> str:
         return asyncio.run(self.get_formatted_news_async(query))
@@ -145,25 +179,6 @@ class AskNewsSearcher:
             return formatted_articles
 
         return formatted_articles
-
-    def __init__(
-        self,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
-    ) -> None:
-        self.client_id = client_id or os.getenv("ASKNEWS_CLIENT_ID")
-        self.client_secret = client_secret or os.getenv("ASKNEWS_SECRET")
-        self.base_url = "https://api.asknews.app/v1"
-        self.token_url = "https://auth.asknews.app/oauth2/token"
-
-        if not self.client_id or not self.client_secret:
-            raise ValueError("ASKNEWS_CLIENT_ID or ASKNEWS_SECRET is not set")
-
-        self.auth = OAuth2ClientCredentials(
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            token_url=self.token_url,
-        )
 
     async def search_news(
         self,  # NOSONAR
@@ -237,3 +252,55 @@ class AskNewsSearcher:
             return SearchResponse(
                 as_string=data.get("as_string"), as_dicts=data.get("as_dicts")
             )
+
+    async def get_formatted_deep_research(
+        self,
+        query: str,
+        sources: list[str] | None = None,
+        model: Literal[
+            "deepseek", "claude-3-7-sonnet-latest", "o3-mini"
+        ] = "deepseek",
+        search_depth: int = _default_search_depth,
+        max_depth: int = _default_max_depth,
+    ) -> str:
+        response = await self.run_deep_research(
+            query, sources, model, search_depth, max_depth
+        )
+        text = response.choices[0].message.content
+
+        start_tag = "<final_answer>"
+        end_tag = "</final_answer>"
+        start_index = text.find(start_tag)
+
+        if start_index != -1:
+            start_index += len(start_tag)
+            end_index = text.find(end_tag, start_index)
+            if end_index != -1:
+                return text[start_index:end_index].strip()
+
+        return text
+
+    async def run_deep_research(
+        self,
+        query: str,
+        sources: list[str] | None = None,
+        model: Literal[
+            "deepseek", "claude-3-7-sonnet-latest", "o3-mini"
+        ] = "deepseek",
+        search_depth: int = _default_search_depth,
+        max_depth: int = _default_max_depth,
+    ) -> CreateDeepNewsResponse:
+        response = await self.sdk.chat.get_deep_news(
+            messages=[{"role": "user", "content": query}],
+            search_depth=search_depth,
+            max_depth=max_depth,
+            sources=sources,
+            stream=False,
+            return_sources=False,
+            model=model,
+            inline_citations="numbered",
+        )
+        if not isinstance(response, CreateDeepNewsResponse):
+            raise ValueError("Response is not a CreateDeepNewsResponse")
+
+        return response

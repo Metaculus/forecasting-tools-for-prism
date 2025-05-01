@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from forecasting_tools.ai_models.model_interfaces.incurs_cost import IncursCost
 from forecasting_tools.ai_models.model_interfaces.request_limited_model import (
@@ -75,6 +75,42 @@ class SearchInput(BaseModel, Jsonable):
         description="The latest publication date for search results"
     )
 
+    @model_validator(mode="after")
+    def validate_times(self: SearchInput) -> SearchInput:
+        def to_utc(dt: datetime | None) -> datetime | None:
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                # Assume local time if naive, convert to UTC
+                return dt.astimezone().astimezone(timezone.utc)
+            return dt.astimezone(timezone.utc)
+
+        start_date = to_utc(self.start_published_date)
+        end_date = to_utc(self.end_published_date)
+        now_utc = datetime.now(timezone.utc)
+
+        if start_date and end_date and start_date > end_date:
+            raise ValueError(
+                "start_published_date must be before or equal to end_published_date"
+            )
+        if start_date and start_date > now_utc:
+            raise ValueError("start_published_date must be before today")
+        if end_date and end_date > now_utc:
+            raise ValueError("end_published_date must be before today")
+        if start_date and (now_utc - start_date) <= timedelta(hours=3):
+            logger.warning(
+                "You are searching for results from within the last 3 hours. This may not return any results."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_include_text(self: SearchInput) -> SearchInput:
+        if self.include_text is not None:
+            num_words = len(self.include_text.split())
+            if num_words < 1 or num_words > 5:
+                raise ValueError("include_text must be 1-5 words")
+        return self
+
 
 class ExaSearcher(
     RequestLimitedModel, RetryableModel, TimeLimitedModel, IncursCost
@@ -129,7 +165,7 @@ class ExaSearcher(
         self, search_query_or_strategy: str | SearchInput
     ) -> list[ExaSource]:
         if isinstance(search_query_or_strategy, str):
-            search_strategy = self.__get_default_search_strategy(
+            search_strategy = self.string_to_default_search_input(
                 search_query_or_strategy
             )
         else:
@@ -211,7 +247,7 @@ class ExaSearcher(
         return url, headers, payload
 
     @classmethod
-    def __get_default_search_strategy(cls, search_query: str) -> SearchInput:
+    def string_to_default_search_input(cls, search_query: str) -> SearchInput:
         return SearchInput(
             web_search_query=search_query,
             highlight_query=search_query,
@@ -322,7 +358,7 @@ class ExaSearcher(
     @classmethod
     def _get_cheap_input_for_invoke(cls) -> SearchInput:
         search_query = "Latest news on AI Research Tools"
-        return cls.__get_default_search_strategy(search_query)
+        return cls.string_to_default_search_input(search_query)
 
 
 # Example response from Exa API: (see the Exa playground for more examples)

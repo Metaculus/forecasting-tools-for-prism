@@ -3,14 +3,18 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from forecasting_tools.agents_and_tools.question_generators.generated_question import (
+    GeneratedQuestion,
+)
+from forecasting_tools.agents_and_tools.question_generators.question_generator import (
+    QuestionGenerator,
+)
+from forecasting_tools.agents_and_tools.question_generators.simple_question import (
+    SimpleQuestion,
+)
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
-)
-from forecasting_tools.research_agents.question_generator import (
-    GeneratedQuestion,
-    QuestionGenerator,
-    SimpleQuestion,
 )
 
 logger = logging.getLogger(__name__)

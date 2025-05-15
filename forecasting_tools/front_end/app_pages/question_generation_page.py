@@ -7,6 +7,15 @@ from datetime import datetime, timedelta
 import streamlit as st
 from pydantic import BaseModel
 
+from forecasting_tools.agents_and_tools.question_generators.generated_question import (
+    GeneratedQuestion,
+)
+from forecasting_tools.agents_and_tools.question_generators.question_generator import (
+    QuestionGenerator,
+)
+from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
+    TopicGenerator,
+)
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
@@ -20,11 +29,6 @@ from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
 from forecasting_tools.front_end.helpers.tool_page import ToolPage
-from forecasting_tools.research_agents.question_generator import (
-    GeneratedQuestion,
-    QuestionGenerator,
-    TopicGenerator,
-)
 from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)

@@ -46,6 +46,7 @@ class MetaculusApi:
     Q4_2024_QUARTERLY_CUP = 3672
     Q1_2025_QUARTERLY_CUP = 32630
     CURRENT_QUARTERLY_CUP_ID = "metaculus-cup"
+    METACULUS_CUP_2025_1_ID = 32726
     CURRENT_METACULUS_CUP_ID = "metaculus-cup"
     CURRENT_AI_COMPETITION_ID = AI_COMPETITION_ID_Q2
 
@@ -199,15 +200,23 @@ class MetaculusApi:
     def get_benchmark_questions(
         cls,
         num_of_questions_to_return: int,
+        days_to_resolve_in: int = 365,
+        max_days_since_opening: int | None = None,
     ) -> list[BinaryQuestion]:
-        one_year_from_now = datetime.now() + timedelta(days=365)
+        date_into_future = datetime.now() + timedelta(days=days_to_resolve_in)
+        date_into_past = (
+            datetime.now() - timedelta(days=max_days_since_opening)
+            if max_days_since_opening
+            else None
+        )
         api_filter = ApiFilter(
             allowed_statuses=["open"],
             allowed_types=["binary"],
             num_forecasters_gte=40,
-            scheduled_resolve_time_lt=one_year_from_now,
+            scheduled_resolve_time_lt=date_into_future,
             includes_bots_in_aggregates=False,
             community_prediction_exists=True,
+            open_time_gt=date_into_past,
         )
         questions = asyncio.run(
             cls.get_questions_matching_filter(

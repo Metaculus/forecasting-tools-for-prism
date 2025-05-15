@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
-import aiohttp
 import litellm
+import nest_asyncio
 import typeguard
+from agents.extensions.models.litellm_model import LitellmModel
 from litellm import acompletion, model_cost
 from litellm.files.main import ModelResponse
 from litellm.types.utils import Choices, Usage
 from litellm.utils import token_counter
+from openai import AsyncOpenAI
 
 from forecasting_tools.ai_models.ai_utils.openai_utils import (
     OpenAiUtils,
@@ -30,10 +33,11 @@ from forecasting_tools.ai_models.model_interfaces.tokens_incur_cost import (
     TokensIncurCost,
 )
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
-    MonetaryCostManager,
+    LitellmCostTracker,
 )
-from forecasting_tools.util import async_batching
-from forecasting_tools.util.misc import raise_for_status_with_additional_info
+from forecasting_tools.util.misc import fill_in_citations
+
+nest_asyncio.apply()
 
 logger = logging.getLogger(__name__)
 ModelInputType = str | VisionMessageData | list[dict[str, str]]
@@ -43,6 +47,19 @@ class ModelTracker:
     def __init__(self, model: str) -> None:
         self.model = model
         self.gave_cost_tracking_warning = False
+
+
+class AgentSdkLlm(LitellmModel):
+    """
+    Wrapper around openai-agent-sdk's LiteLlm Model for later extension
+    """
+
+    async def get_response(self, *args, **kwargs):  # NOSONAR
+        response = await super().get_response(*args, **kwargs)
+        await asyncio.sleep(
+            0.0001
+        )  # For whatever reason, you need to await a coroutine to get the cost call back to work
+        return response
 
 
 class GeneralLlm(
@@ -99,6 +116,7 @@ class GeneralLlm(
         temperature: float | int | None = 0,
         timeout: float | int | None = None,
         pass_through_unknown_kwargs: bool = True,
+        populate_citations: bool = True,
         **kwargs,
     ) -> None:
         """
@@ -146,6 +164,7 @@ class GeneralLlm(
         )
         super().__init__(allowed_tries=allowed_tries)
         self.model = model
+        self.populate_citations = populate_citations
 
         metaculus_prefix = "metaculus/"
         exa_prefix = "exa/"
@@ -249,7 +268,6 @@ class GeneralLlm(
         model_not_supported = model not in supported_model_names
         if model_not_supported:
             message = f"Warning: Model {model} does not support cost tracking."
-            print(message)
             logger.warning(message)
 
         model_tracker.gave_cost_tracking_warning = True
@@ -267,18 +285,10 @@ class GeneralLlm(
         self, *args, **kwargs
     ) -> Any:
         logger.debug(f"Invoking model with args: {args} and kwargs: {kwargs}")
-        MonetaryCostManager.raise_error_if_limit_would_be_reached()
         direct_call_response = await self._mockable_direct_call_to_model(
             *args, **kwargs
         )
-        response_to_log = (
-            direct_call_response[:1000]
-            if isinstance(direct_call_response, str)
-            else direct_call_response
-        )
-        logger.debug(f"Model responded with: {response_to_log}...")
-        cost = direct_call_response.cost
-        MonetaryCostManager.increase_current_usage_in_parent_managers(cost)
+        logger.debug(f"Model responded with: {direct_call_response}")
         return direct_call_response
 
     async def _mockable_direct_call_to_model(
@@ -309,13 +319,22 @@ class GeneralLlm(
         completion_tokens = usage.completion_tokens
         total_tokens = usage.total_tokens
 
-        cost = response._hidden_params.get(
-            "response_cost"
-        )  # If this has problems, consider using the budgetmanager class
-        if cost is None:
-            cost = 0
+        cost = LitellmCostTracker.calculate_cost(response._hidden_params)
 
-        cost += self.calculate_per_request_cost(self.model)
+        if (
+            response.model_extra
+            and "citations" in response.model_extra
+            and self.populate_citations
+        ):
+            citations = response.model_extra.get("citations")
+            citations = typeguard.check_type(citations, list[str])
+            answer = fill_in_citations(
+                citations, answer, use_citation_brackets=False
+            )
+
+        await asyncio.sleep(
+            0.0001
+        )  # For whatever reason, you need to await a coroutine to get the cost call back to work
 
         return TextTokenCostResponse(
             data=answer,
@@ -336,52 +355,38 @@ class GeneralLlm(
             "exa/"
         ), f"model {self.model} is not an exa model but is being called like one"
 
-        payload = {
-            "model": self._litellm_model,
-            "messages": self.model_input_to_message(prompt),
-            "temperature": self.litellm_kwargs["temperature"],
-            "extra_body": {
-                "text": False,
-            },
-        }
+        api_key = self.litellm_kwargs.get("api_key")
+        timeout = self.litellm_kwargs.get("timeout")
+        temperature = self.litellm_kwargs.get("temperature")
+        extra_headers = self.litellm_kwargs.get("extra_headers")
 
-        async with aiohttp.ClientSession() as session:
-            api_key = self.litellm_kwargs.get("api_key")
-            if not api_key:
-                raise ValueError("Exa API key not found in litellm_kwargs")
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            }
-            extra_headers = self.litellm_kwargs.get("extra_headers")
-            if extra_headers:
-                headers.update(extra_headers)
-            task = session.post(
-                "https://api.exa.ai/chat/completions",
-                headers=headers,
-                json=payload,
-            )
-            timeout = self.litellm_kwargs.get("timeout")
-            if timeout is not None:
-                task = async_batching.wrap_coroutines_with_timeout(
-                    [task], float(timeout)
-                )[0]
-            response = await task
-            raise_for_status_with_additional_info(response)
-            completion = await response.json()
+        client = AsyncOpenAI(
+            base_url="https://api.exa.ai",
+            api_key=api_key,
+        )
 
-        response_text = completion["choices"][0]["message"]["content"]
+        completion = await client.chat.completions.create(
+            model=self._litellm_model,
+            messages=self.model_input_to_message(prompt),  # type: ignore
+            temperature=temperature,
+            timeout=timeout,
+            extra_headers=extra_headers,
+        )
+
+        response_text = completion.choices[0].message.content
         if response_text is None:
             raise ValueError("Response text is None for exa model")
 
-        usage = completion["usage"]
+        usage = completion.usage
         if usage is None:
             raise ValueError("Usage is None for exa model")
+        prompt_tokens = usage.prompt_tokens
+        completion_tokens = usage.completion_tokens
+        total_tokens = usage.total_tokens
 
-        prompt_tokens = usage["prompt_tokens"]
-        completion_tokens = usage["completion_tokens"]
-        total_tokens = usage["total_tokens"]
-        cost = 0  # API claims that there is completion["costDollars"], but I can't find it
+        # TODO: API claims that there is completion["costDollars"], but I can't find it
+        # Additionally we will need to log this separately to monetary cost manager (since litellm uses callbacks)
+        cost = 0
 
         return TextTokenCostResponse(
             data=response_text,
@@ -500,16 +505,69 @@ class GeneralLlm(
         completion_cost = (completion_tkns / 1000) * output_cost_per_1k
 
         total_cost = prompt_cost + completion_cost
-        if calculate_full_cost:
-            total_cost += self.calculate_per_request_cost(self.model)
         return total_cost
 
     @classmethod
-    def calculate_per_request_cost(cls, model: str) -> float:
-        # TODO: Make sure this doesn't get outdated (litellm might implement this locally)
-        cost = 0
-        if "perplexity" in model:
-            cost += 0.005  # There is at least one search costing $0.005 per perplexity request
-            if "pro" in model:
-                cost += 0.005  # There is probably more than one search in pro models
-        return cost
+    def to_llm(cls, model_name_or_instance: str | GeneralLlm) -> GeneralLlm:
+        if isinstance(model_name_or_instance, str):
+            return GeneralLlm(model=model_name_or_instance)
+        return model_name_or_instance
+
+    @classmethod
+    def to_model_name(cls, model_name_or_instance: str | GeneralLlm) -> str:
+        if isinstance(model_name_or_instance, str):
+            return model_name_or_instance
+        return model_name_or_instance.model
+
+    @classmethod
+    def grounded_model(cls, model: str, temperature: float = 0) -> GeneralLlm:
+        grounding_llm = GeneralLlm(
+            model=model,
+            temperature=temperature,
+            generationConfig={
+                "thinkingConfig": {
+                    "thinkingBudget": 0,
+                },
+                "responseMimeType": "text/plain",
+            },
+            tools=[
+                {"googleSearch": {}},
+            ],
+        )
+        return grounding_llm
+
+    @classmethod
+    def thinking_budget_model(
+        cls,
+        model: str,
+        temperature: float = 1,
+        budget_tokens: int = 32000,
+        max_tokens: int = 40000,
+        timeout: float = 160,
+    ) -> GeneralLlm:
+        thinking_budget_llm = GeneralLlm(
+            model=model,
+            temperature=temperature,
+            thinking={
+                "type": "enabled",
+                "budget_tokens": budget_tokens,
+            },
+            max_tokens=max_tokens,
+            timeout=timeout,
+        )
+        return thinking_budget_llm
+
+    @classmethod
+    def search_context_model(
+        cls,
+        model: str,
+        temperature: float = 0,
+        search_context_size: Literal["high", "medium", "low"] = "high",
+    ) -> GeneralLlm:
+        search_model = GeneralLlm(
+            model=model,
+            temperature=temperature,
+            web_search_options={"search_context_size": search_context_size},
+            reasoning_effort="high",
+        )
+        return search_model

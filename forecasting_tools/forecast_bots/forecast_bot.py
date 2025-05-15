@@ -60,7 +60,7 @@ class Notepad(BaseModel):
     question: MetaculusQuestion
     total_research_reports_attempted: int = 0
     total_predictions_attempted: int = 0
-    note_entries: dict[str, str] = {}
+    note_entries: dict[str, Any] = {}
 
 
 class ForecastBot(ABC):
@@ -121,15 +121,22 @@ class ForecastBot(ABC):
     async def forecast_on_tournament(
         self,
         tournament_id: int | str,
-        return_exceptions: bool = False,
+        return_exceptions: Literal[False],
     ) -> list[ForecastReport]: ...
 
     @overload
     async def forecast_on_tournament(
         self,
         tournament_id: int | str,
-        return_exceptions: bool = True,
+        return_exceptions: Literal[True],
     ) -> list[ForecastReport | BaseException]: ...
+
+    @overload
+    async def forecast_on_tournament(
+        self,
+        tournament_id: int | str,
+        return_exceptions: bool = False,
+    ) -> list[ForecastReport] | list[ForecastReport | BaseException]: ...
 
     async def forecast_on_tournament(
         self,
@@ -145,14 +152,21 @@ class ForecastBot(ABC):
     async def forecast_question(
         self,
         question: MetaculusQuestion,
-        return_exceptions: bool = False,
+        return_exceptions: Literal[False] = False,
     ) -> ForecastReport: ...
 
     @overload
     async def forecast_question(
         self,
         question: MetaculusQuestion,
-        return_exceptions: bool = True,
+        return_exceptions: Literal[True] = True,
+    ) -> ForecastReport | BaseException: ...
+
+    @overload
+    async def forecast_question(
+        self,
+        question: MetaculusQuestion,
+        return_exceptions: bool = False,
     ) -> ForecastReport | BaseException: ...
 
     async def forecast_question(
@@ -172,15 +186,22 @@ class ForecastBot(ABC):
     async def forecast_questions(
         self,
         questions: Sequence[MetaculusQuestion],
-        return_exceptions: bool = False,
+        return_exceptions: Literal[False] = False,
     ) -> list[ForecastReport]: ...
 
     @overload
     async def forecast_questions(
         self,
         questions: Sequence[MetaculusQuestion],
-        return_exceptions: bool = True,
+        return_exceptions: Literal[True] = True,
     ) -> list[ForecastReport | BaseException]: ...
+
+    @overload
+    async def forecast_questions(
+        self,
+        questions: Sequence[MetaculusQuestion],
+        return_exceptions: bool = False,
+    ) -> list[ForecastReport] | list[ForecastReport | BaseException]: ...
 
     async def forecast_questions(
         self,
@@ -682,7 +703,12 @@ class ForecastBot(ABC):
 
         full_summary = "\n"
         full_summary += "-" * 100 + "\n"
+
         for report in valid_reports:
+            try:
+                first_rationale = report.first_rationale
+            except Exception as e:
+                first_rationale = f"Failed to get first rationale: {e}"
             question_summary = clean_indents(
                 f"""
                 URL: {report.question.page_url}
@@ -691,7 +717,7 @@ class ForecastBot(ABC):
                 {report.summary}
 
                 <<<<<<<<<<<<<<<<<<<< First Rationale >>>>>>>>>>>>>>>>>>>>>
-                {report.forecast_rationales.split("##")[1][:10000]}
+                {first_rationale[:10000]}
                 -------------------------------------------------------------------------------------------
             """
             )
@@ -739,7 +765,7 @@ class ForecastBot(ABC):
                 f"{len(minor_exceptions)} minor exceptions occurred while forecasting: {minor_exceptions}"
             )
 
-        if exceptions and raise_errors:
+        if exceptions:
             for exc in exceptions:
                 logger.error(
                     "Exception occurred during forecasting:\n%s",
@@ -749,13 +775,10 @@ class ForecastBot(ABC):
                         )
                     ),
                 )
-            raise RuntimeError(
-                f"{len(exceptions)} errors occurred while forecasting: {exceptions}"
-            )
-        else:
-            logger.warning(
-                f"{len(exceptions)} errors occurred while forecasting: {exceptions}"
-            )
+            if raise_errors:
+                raise RuntimeError(
+                    f"{len(exceptions)} errors occurred while forecasting: {exceptions}"
+                )
 
     @overload
     def get_llm(

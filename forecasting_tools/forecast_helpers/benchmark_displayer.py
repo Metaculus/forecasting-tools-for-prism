@@ -58,7 +58,9 @@ def display_score_overview(reports: list[BinaryReport]) -> None:
 def display_stats_for_report_type(
     reports: list[BinaryReport], title: str
 ) -> None:
-    assert len(reports) > 0, "Must have at least one report to display stats"
+    if len(reports) == 0:
+        logger.warning(f"No reports found for {title}")
+        return
     average_expected_baseline_score = (
         BinaryReport.calculate_average_expected_baseline_score(reports)
     )
@@ -243,8 +245,15 @@ def display_benchmark_comparison_graphs(
         - Perfect predictor: automatically created and shows what a perfect score (predicting community prediction) would be. To calculate this, it uses same questions as the first benchmark in the list.
         """
     )
-    data_by_benchmark = []
 
+    total_cost = sum(
+        benchmark.total_cost
+        for benchmark in benchmarks
+        if benchmark.total_cost is not None
+    )
+    st.markdown(f"**Total Cost:** ${total_cost:.2f}")
+
+    data_by_benchmark = []
     for index, benchmark in enumerate(benchmarks):
         reports = benchmark.forecast_reports
         reports = typeguard.check_type(reports, list[BinaryReport])
@@ -433,7 +442,7 @@ def run_benchmark_streamlit_page(
 
     This function runs the benchmark streamlit page.
     If input_benchmarks is provided, it will display the benchmarks passed in.
-    If input is a string, it will be treated as a folder path that contains benchmark JSON file.
+    If input is a string, it will be treated as a folder path that contains benchmark JSON files.
     Otherwise, it will display the benchmarks in the project directory.
 
     Files containing "bench" in the name and ending in '.json' will be collected as benchmark files
@@ -470,15 +479,21 @@ def run_benchmark_streamlit_page(
             all_benchmarks: list[BenchmarkForBot] = []
             for file in selected_files:
                 benchmarks = BenchmarkForBot.load_json_from_file_path(file)
-                all_benchmarks.extend(benchmarks)
+                for benchmark in benchmarks:
+                    if len(benchmark.forecast_reports) > 0:
+                        all_benchmarks.append(benchmark)
+
+            logger.info(f"Loaded {len(all_benchmarks)} benchmarks")
 
             perfect_benchmark = make_perfect_benchmark(all_benchmarks[0])
             all_benchmarks.insert(0, perfect_benchmark)
 
-            benchmark_options = [
-                f"{i}: {b.name} (Score: {b.average_expected_baseline_score:.4f})"
-                for i, b in enumerate(all_benchmarks)
-            ]
+            benchmark_options = []
+            for i, b in enumerate(all_benchmarks):
+                benchmark_options.append(
+                    f"{i}: {b.name} (Score: {b.average_expected_baseline_score:.4f})"
+                )
+
             selected_benchmarks = st.multiselect(
                 "Select benchmarks to display:",
                 range(len(all_benchmarks)),
@@ -493,7 +508,7 @@ def run_benchmark_streamlit_page(
                 display_benchmark_comparison_graphs(filtered_benchmarks)
                 display_benchmark_list(filtered_benchmarks)
         except Exception as e:
-            st.error(f"Could not load files. Error: {str(e)}")
+            st.error(f"Error when loading/displaying benchmarks: {str(e)}")
 
 
 if __name__ == "__main__":

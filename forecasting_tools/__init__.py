@@ -1,3 +1,27 @@
+from forecasting_tools.agents_and_tools.base_rates.base_rate_researcher import (
+    BaseRateResearcher as BaseRateResearcher,
+)
+from forecasting_tools.agents_and_tools.base_rates.estimator import (
+    Estimator as Estimator,
+)
+from forecasting_tools.agents_and_tools.base_rates.niche_list_researcher import (
+    FactCheckedItem as FactCheckedItem,
+)
+from forecasting_tools.agents_and_tools.base_rates.niche_list_researcher import (
+    NicheListResearcher as NicheListResearcher,
+)
+from forecasting_tools.agents_and_tools.key_factors_researcher import (
+    KeyFactorsResearcher as KeyFactorsResearcher,
+)
+from forecasting_tools.agents_and_tools.key_factors_researcher import (
+    ScoredKeyFactor as ScoredKeyFactor,
+)
+from forecasting_tools.agents_and_tools.question_generators.question_generator import (
+    QuestionGenerator as QuestionGenerator,
+)
+from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
+    TopicGenerator as TopicGenerator,
+)
 from forecasting_tools.ai_models.ai_utils.ai_misc import (
     clean_indents as clean_indents,
 )
@@ -69,9 +93,6 @@ from forecasting_tools.data_models.questions import (
 from forecasting_tools.data_models.questions import (
     QuestionState as QuestionState,
 )
-from forecasting_tools.forecast_bots.community.uniform_probability_bot import (
-    UniformProbabilityBot as UniformProbabilityBot,
-)
 from forecasting_tools.forecast_bots.forecast_bot import (
     ForecastBot as ForecastBot,
 )
@@ -88,6 +109,9 @@ from forecasting_tools.forecast_bots.official_bots.q3_template_bot import (
 )
 from forecasting_tools.forecast_bots.official_bots.q4_template_bot import (
     Q4TemplateBot2024 as Q4TemplateBot2024,
+)
+from forecasting_tools.forecast_bots.other.uniform_probability_bot import (
+    UniformProbabilityBot as UniformProbabilityBot,
 )
 from forecasting_tools.forecast_bots.template_bot import (
     TemplateBot as TemplateBot,
@@ -112,26 +136,4 @@ from forecasting_tools.forecast_helpers.prediction_extractor import (
 )
 from forecasting_tools.forecast_helpers.smart_searcher import (
     SmartSearcher as SmartSearcher,
-)
-from forecasting_tools.research_agents.base_rate_researcher import (
-    BaseRateResearcher as BaseRateResearcher,
-)
-from forecasting_tools.research_agents.estimator import Estimator as Estimator
-from forecasting_tools.research_agents.key_factors_researcher import (
-    KeyFactorsResearcher as KeyFactorsResearcher,
-)
-from forecasting_tools.research_agents.key_factors_researcher import (
-    ScoredKeyFactor as ScoredKeyFactor,
-)
-from forecasting_tools.research_agents.niche_list_researcher import (
-    FactCheckedItem as FactCheckedItem,
-)
-from forecasting_tools.research_agents.niche_list_researcher import (
-    NicheListResearcher as NicheListResearcher,
-)
-from forecasting_tools.research_agents.question_generator import (
-    QuestionGenerator as QuestionGenerator,
-)
-from forecasting_tools.research_agents.question_generator import (
-    TopicGenerator as TopicGenerator,
 )

@@ -14,12 +14,12 @@ import dotenv
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.data_models.forecast_report import ForecastReport
-from forecasting_tools.forecast_bots.community.uniform_probability_bot import (
-    UniformProbabilityBot,
-)
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 from forecasting_tools.forecast_bots.official_bots.q2_template_bot import (
     Q2TemplateBot2025,
+)
+from forecasting_tools.forecast_bots.other.uniform_probability_bot import (
+    UniformProbabilityBot,
 )
 from forecasting_tools.forecast_helpers.forecast_database_manager import (
     ForecastDatabaseManager,
@@ -38,7 +38,7 @@ default_for_using_summary = False
 
 async def configure_and_run_bot(
     mode: str, return_bot_dont_run: bool = False
-) -> ForecastBot | list[ForecastReport]:
+) -> ForecastBot | list[ForecastReport | BaseException]:
 
     if "metaculus-cup" in mode:
         chosen_tournament = MetaculusApi.CURRENT_METACULUS_CUP_ID
@@ -100,12 +100,14 @@ def get_default_bot_dict() -> dict[str, Any]:  # NOSONAR
     roughly_gpt_4o_mini_cost = 0.005
     roughly_sonnet_3_5_cost = 0.10
 
+    gemini_2_5_pro_preview = "openrouter/google/gemini-2.5-pro-preview"  # "gemini/gemini-2.5-pro-preview-03-25"
+    gemini_default_timeout = 120
     default_perplexity_settings = {
         "web_search_options": {"search_context_size": "high"},
         "reasoning_effort": "high",
     }
     gemini_grounding_llm = GeneralLlm(
-        model="gemini/gemini-2.5-pro-preview-03-25",
+        model=gemini_2_5_pro_preview,
         generationConfig={
             "thinkingConfig": {
                 "thinkingBudget": 0,
@@ -126,9 +128,9 @@ def get_default_bot_dict() -> dict[str, Any]:  # NOSONAR
             "estimated_cost_per_question": 0.16,
             "bot": create_bot(
                 GeneralLlm(
-                    model="gemini/gemini-2.5-pro-preview-03-25",
+                    model=gemini_2_5_pro_preview,
                     temperature=default_temperature,
-                    timeout=90,
+                    timeout=gemini_default_timeout,
                 ),
                 researcher=gemini_grounding_llm,
             ),
@@ -137,9 +139,9 @@ def get_default_bot_dict() -> dict[str, Any]:  # NOSONAR
             "estimated_cost_per_question": None,
             "bot": create_bot(
                 GeneralLlm(
-                    model="gemini/gemini-2.5-pro-preview-03-25",
+                    model=gemini_2_5_pro_preview,
                     temperature=default_temperature,
-                    timeout=90,
+                    timeout=gemini_default_timeout,
                 ),
                 researcher=GeneralLlm(
                     model="perplexity/sonar-reasoning-pro",
@@ -151,9 +153,9 @@ def get_default_bot_dict() -> dict[str, Any]:  # NOSONAR
             "estimated_cost_per_question": None,
             "bot": create_bot(
                 GeneralLlm(
-                    model="gemini/gemini-2.5-pro-preview-03-25",
+                    model=gemini_2_5_pro_preview,
                     temperature=default_temperature,
-                    timeout=90,
+                    timeout=gemini_default_timeout,
                 ),
                 researcher=GeneralLlm(model="exa/exa-pro"),
             ),
@@ -325,7 +327,7 @@ def get_default_bot_dict() -> dict[str, Any]:  # NOSONAR
                 GeneralLlm(
                     model="gemini/gemini-2.5-flash-preview-04-17",
                     temperature=default_temperature,
-                    timeout=90,
+                    timeout=gemini_default_timeout,
                 ),
             ),
         },
@@ -451,9 +453,9 @@ def get_default_bot_dict() -> dict[str, Any]:  # NOSONAR
             "estimated_cost_per_question": 0.30,
             "bot": create_bot(
                 GeneralLlm(
-                    model="gemini/gemini-2.5-pro-preview-03-25",
+                    model=gemini_2_5_pro_preview,
                     temperature=default_temperature,
-                    timeout=90,
+                    timeout=gemini_default_timeout,
                 ),
             ),
         },

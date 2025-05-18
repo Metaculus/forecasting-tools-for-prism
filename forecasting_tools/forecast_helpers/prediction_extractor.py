@@ -211,53 +211,105 @@ class PredictionExtractor:
     def extract_numeric_distribution_from_list_of_percentile_number_and_probability(
         text: str, question: NumericQuestion
     ) -> NumericDistribution:
-
         if not text or text.strip() == "":
             raise ValueError(
                 "While trying to extract numeric distribution from response found that the reasoning is None or an empty string"
             )
-
-        pattern = r"^.*[Pp]ercentile.*$"
-        number_pattern = r"-\s*(?:[^\d\-]*\s*)?(\d+(?:,\d{3})*(?:\.\d+)?)|(\d+(?:,\d{3})*(?:\.\d+)?)"
-        results = []
-
-        for line in text.split("\n"):
-            if re.match(pattern, line):
-                numbers = re.findall(number_pattern, line)
-                numbers_no_commas = [
-                    next(num for num in match if num).replace(",", "")
-                    for match in numbers
-                ]
-                numbers = [
-                    float(num) if "." in num else int(num)
-                    for num in numbers_no_commas
-                ]
-                if len(numbers) > 1:
-                    first_number = numbers[0]
-                    last_number = numbers[-1]
-                    # Check if the original line had a negative sign before the last number
-                    if "-" in line.split(":")[-1]:
-                        last_number = -abs(last_number)
-                    results.append((first_number, last_number))
-
-        percentiles = [
-            Percentile(
-                value=value,
-                percentile=percentile / 100,
-            )
-            for percentile, value in results
-        ]
-
-        if not percentiles:
+        percentile_lines = PredictionExtractor._get_percentile_lines(text)
+        final_percentiles: list[Percentile] = []
+        for line in percentile_lines:
+            numbers = PredictionExtractor._parse_numbers_from_line(line)
+            percentile = PredictionExtractor._percentile_from_numbers(numbers)
+            if percentile:
+                final_percentiles.append(percentile)
+        if not final_percentiles:
             raise ValueError(
                 f"Couldn't extract numeric distribution from response. The text was: {text}"
             )
-
         return NumericDistribution(
-            declared_percentiles=percentiles,
+            declared_percentiles=final_percentiles,
             open_upper_bound=question.open_upper_bound,
             open_lower_bound=question.open_lower_bound,
             upper_bound=question.upper_bound,
             lower_bound=question.lower_bound,
             zero_point=question.zero_point,
+        )
+
+    @staticmethod
+    def _get_percentile_lines(text: str) -> list[str]:
+        # Regex looks for patterns like "Percentile X: Y" or "Xth Percentile - Y".
+        line_filter_pattern = r"^\s*(?:(?:[Pp]ercentile\s+\d+)|\d+\s*(?:th|st|nd|rd)?\s*[Pp]ercentile)\s*[:\-\s]\s*\S+.*"
+        return [
+            line.strip()
+            for line in text.split("\n")
+            if re.match(line_filter_pattern, line.strip())
+        ]
+
+    @staticmethod
+    def _parse_numbers_from_line(line: str) -> list[float | int]:
+        # Regex to extract numbers, allowing for an optional sign,
+        # optional leading symbols (like currency),
+        # and commas within the number.
+        # Group 1: Optional sign (-).
+        # Group 2: The number string (digits, possibly with commas/decimal).
+        number_extraction_pattern = (
+            r"(-)?\s*(?:[^\w\s,.-]*\s*)?(\d+(?:,\d{3})*(?:\.\d+)?)"
+        )
+        raw_number_matches = re.findall(number_extraction_pattern, line)
+        parsed_numbers: list[float | int] = []
+        for sign_group, number_val_str in raw_number_matches:
+            num_str_no_commas = number_val_str.replace(",", "")
+            if "." in num_str_no_commas:
+                parsed_num = float(num_str_no_commas)
+            else:
+                parsed_num = int(num_str_no_commas)
+            if sign_group == "-":
+                parsed_num = -parsed_num
+            parsed_numbers.append(parsed_num)
+        return parsed_numbers
+
+    @staticmethod
+    def _percentile_from_numbers(
+        numbers: list[float | int],
+    ) -> Percentile | None:
+        """
+        Example:
+        Percentile 10: -12,222
+        Would parse to [10, -12222]
+
+        Example:
+        Percentile 10: -12 222
+
+        Would parse to [10, -12, 222]
+        """
+        if len(numbers) <= 1:
+            raise ValueError(
+                "There should be at least two numbers in lines parsed for percentiles"
+            )
+        percentile_level = numbers[0]
+        original_value_at_percentile = numbers[1]
+        value_is_negative = original_value_at_percentile < 0
+
+        value_at_percentile = original_value_at_percentile
+        if len(numbers) > 2:
+            if value_at_percentile >= 1000:
+                raise ValueError(
+                    "There should not be more than 3 digits per space separated section for number"
+                )
+            for other_number in numbers[2:]:
+                if other_number >= 1000:
+                    raise ValueError(
+                        "There should not be more than 3 digits per space separated section for number"
+                    )
+                if other_number < 0:
+                    raise ValueError(
+                        "There should not be negative numbers in number section separated by spaces"
+                    )
+                value_at_percentile = (
+                    value_at_percentile * 1000
+                    + other_number * (-1 if value_is_negative else 1)
+                )
+        return Percentile(
+            value=value_at_percentile,
+            percentile=percentile_level / 100.0,
         )

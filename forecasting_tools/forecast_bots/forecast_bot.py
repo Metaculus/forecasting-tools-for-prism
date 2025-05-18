@@ -121,14 +121,14 @@ class ForecastBot(ABC):
     async def forecast_on_tournament(
         self,
         tournament_id: int | str,
-        return_exceptions: Literal[False],
+        return_exceptions: Literal[False] = False,
     ) -> list[ForecastReport]: ...
 
     @overload
     async def forecast_on_tournament(
         self,
         tournament_id: int | str,
-        return_exceptions: Literal[True],
+        return_exceptions: Literal[True] = True,
     ) -> list[ForecastReport | BaseException]: ...
 
     @overload
@@ -682,8 +682,9 @@ class ForecastBot(ABC):
             f"No notepad found for question: ID: {question.id_of_post} Text: {question.question_text}"
         )
 
-    @staticmethod
+    @classmethod
     def log_report_summary(
+        cls,
         forecast_reports: Sequence[ForecastReport | BaseException],
         raise_errors: bool = True,
     ) -> None:
@@ -691,14 +692,6 @@ class ForecastBot(ABC):
             report
             for report in forecast_reports
             if isinstance(report, ForecastReport)
-        ]
-        exceptions = [
-            report
-            for report in forecast_reports
-            if isinstance(report, BaseException)
-        ]
-        minor_exceptions = [
-            report.errors for report in valid_reports if report.errors
         ]
 
         full_summary = "\n"
@@ -723,6 +716,7 @@ class ForecastBot(ABC):
             )
             full_summary += question_summary + "\n"
 
+        full_summary += f"Bot: {cls.__name__}\n"
         for report in forecast_reports:
             if isinstance(report, ForecastReport):
                 short_summary = f"✅ URL: {report.question.page_url} | Minor Errors: {len(report.errors)}"
@@ -760,10 +754,14 @@ class ForecastBot(ABC):
         full_summary += "-" * 100 + "\n\n\n"
         logger.info(full_summary)
 
-        if minor_exceptions:
-            logger.error(
-                f"{len(minor_exceptions)} minor exceptions occurred while forecasting: {minor_exceptions}"
-            )
+        exceptions = [
+            report
+            for report in forecast_reports
+            if isinstance(report, BaseException)
+        ]
+        minor_exceptions = [
+            error for report in valid_reports for error in report.errors or []
+        ]
 
         if exceptions:
             for exc in exceptions:
@@ -779,6 +777,10 @@ class ForecastBot(ABC):
                 raise RuntimeError(
                     f"{len(exceptions)} errors occurred while forecasting: {exceptions}"
                 )
+        elif minor_exceptions:
+            logger.error(
+                f"{len(minor_exceptions)} minor exceptions occurred while forecasting: {minor_exceptions}"
+            )
 
     @overload
     def get_llm(

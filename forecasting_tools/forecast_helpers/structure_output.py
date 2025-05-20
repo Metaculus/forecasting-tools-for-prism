@@ -9,8 +9,12 @@ T = TypeVar("T")
 
 
 async def structure_output(
-    output: str, output_type: type[T], model: GeneralLlm | str = "gpt-4o-mini"
+    output: str,
+    output_type: type[T],
+    model: GeneralLlm | str = "openrouter/openai/gpt-4.1-mini",
 ) -> T:
+    if not output:
+        raise ValueError("Output is empty")
     # Initialize with empty instructions
     pydantic_instructions = ""
 
@@ -40,6 +44,7 @@ async def structure_output(
             except TypeError:
                 pass
 
+    type_not_found = "<<REQUESTED TYPE WAS NOT FOUND IN TEXT>>"
     prompt = clean_indents(
         f"""
         You are a secretary helping to convert text into structured data.
@@ -54,8 +59,10 @@ async def structure_output(
         - Do not guess the fields
         - Do not fill in fields that are not explicitly given and required in the text
         - Do not summarize any of the text. Only give direct quotes (with only slight formatting changes)
+        - If the text is completely unrelated to the requested type please just say "{type_not_found}"
+        - DO NOT exclude links if links are provided with the intended answer please keep the links. Copy all them as they are shown in the text.
 
-        Please prioritize using any 'final answers' to fill your structured response if they are mentioned (avoid using intermediary steps)
+        If 'final answers' are mentioned, please prioritize using them to fill your structured response (i.e. avoid using intermediary steps)
         Here is the text:
 
         <><><><><><><><><><><> START TEXT <><><><><><><><><><><>
@@ -73,9 +80,14 @@ async def structure_output(
         {output_type}
 
         {pydantic_instructions}
+
+
+        Remember to include links!
         """
     ).strip()
 
     llm = GeneralLlm.to_llm(model)
+
     result = await llm.invoke_and_return_verified_type(prompt, output_type)
+
     return result

@@ -23,9 +23,6 @@ from forecasting_tools.front_end.app_pages.key_factors_page import (
 from forecasting_tools.front_end.app_pages.niche_list_researcher_page import (
     NicheListResearchPage,
 )
-from forecasting_tools.front_end.app_pages.question_generation_page import (
-    QuestionGeneratorPage,
-)
 from forecasting_tools.front_end.helpers.app_page import AppPage
 from forecasting_tools.util.custom_logger import CustomLogger
 
@@ -41,7 +38,6 @@ class HomePage(AppPage):
     NICHE_LIST_RESEARCH_PAGE: type[AppPage] = NicheListResearchPage
     ESTIMATOR_PAGE: type[AppPage] = EstimatorPage
     KEY_FACTORS_PAGE: type[AppPage] = KeyFactorsPage
-    QUESTION_GENERATION_PAGE: type[AppPage] = QuestionGeneratorPage
     BENCHMARK_PAGE: type[AppPage] = BenchmarkPage
     NON_HOME_PAGES: list[type[AppPage]] = [
         CHAT_PAGE,
@@ -50,8 +46,6 @@ class HomePage(AppPage):
         BASE_RATE_PAGE,
         NICHE_LIST_RESEARCH_PAGE,
         ESTIMATOR_PAGE,
-        QUESTION_GENERATION_PAGE,
-        # BENCHMARK_PAGE, # Enabled by env variable
     ]
 
     @classmethod
@@ -65,7 +59,7 @@ class HomePage(AppPage):
 
 def run_forecasting_streamlit_app() -> None:
     all_pages = [HomePage] + HomePage.NON_HOME_PAGES
-    if os.getenv("RUN_BENCHMARK_PAGE", "false").lower() == "true":
+    if os.getenv("LOCAL_STREAMLIT_MODE", "false").lower() == "true":
         all_pages.append(HomePage.BENCHMARK_PAGE)
     navigation = st.navigation(
         [page.convert_to_streamlit_page() for page in all_pages]
@@ -78,8 +72,8 @@ def run_forecasting_streamlit_app() -> None:
 
 if __name__ == "__main__":
     dotenv.load_dotenv()
-    CustomLogger.clear_latest_log_files()
     if "logger_initialized" not in st.session_state:
+        CustomLogger.clear_latest_log_files()
         CustomLogger.setup_logging()
         st.session_state["logger_initialized"] = True
     run_forecasting_streamlit_app()

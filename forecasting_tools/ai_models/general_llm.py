@@ -9,7 +9,6 @@ from typing import Any, Literal
 import litellm
 import nest_asyncio
 import typeguard
-from agents.extensions.models.litellm_model import LitellmModel
 from litellm import acompletion, model_cost
 from litellm.files.main import ModelResponse
 from litellm.types.utils import Choices, Usage
@@ -47,19 +46,6 @@ class ModelTracker:
     def __init__(self, model: str) -> None:
         self.model = model
         self.gave_cost_tracking_warning = False
-
-
-class AgentSdkLlm(LitellmModel):
-    """
-    Wrapper around openai-agent-sdk's LiteLlm Model for later extension
-    """
-
-    async def get_response(self, *args, **kwargs):  # NOSONAR
-        response = await super().get_response(*args, **kwargs)
-        await asyncio.sleep(
-            0.0001
-        )  # For whatever reason, you need to await a coroutine to get the cost call back to work
-        return response
 
 
 class GeneralLlm(
@@ -278,7 +264,12 @@ class GeneralLlm(
                 prompt
             )
         )
-        return response.data
+        data = response.data
+        if data == "":
+            raise RuntimeError(
+                f"LLM answer is an empty string. The model was {self.model} and the prompt was: {prompt}"
+            )
+        return data
 
     @RetryableModel._retry_according_to_model_allowed_tries
     async def _invoke_with_request_cost_time_and_token_limits_and_retry(

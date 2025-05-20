@@ -1,15 +1,19 @@
 import logging
+import os
+import time
 
 import streamlit as st
-from agents import Agent, RunItem, Runner, Tool
+from agents import Agent, RunItem, Runner, Tool, trace
 from openai.types.responses import ResponseTextDeltaEvent
+from pydantic import BaseModel
 
 from forecasting_tools.agents_and_tools.misc_tools import (
     create_tool_for_forecasting_bot,
     get_general_news_with_asknews,
     grab_open_questions_from_tournament,
     grab_question_details_from_metaculus,
-    perplexity_search,
+    perplexity_pro_search,
+    perplexity_quick_search,
     smart_searcher_search,
 )
 from forecasting_tools.agents_and_tools.question_generators.question_decomposer import (
@@ -21,8 +25,8 @@ from forecasting_tools.agents_and_tools.question_generators.question_operational
 from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
     TopicGenerator,
 )
+from forecasting_tools.ai_models.agent_wrappers import AgentSdkLlm, AgentTool
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
-from forecasting_tools.ai_models.general_llm import AgentSdkLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
@@ -33,18 +37,17 @@ from forecasting_tools.front_end.helpers.app_page import AppPage
 from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
+from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)
 
 
-class ChatMessage:
-    def __init__(self, role: str, content: str, tool_output: str = "") -> None:
-        self.role = role
-        self.content = content
-        self.tool_output = tool_output
-
-    def to_open_ai_message(self) -> dict:
-        return {"role": self.role, "content": self.content}
+class ChatSession(BaseModel, Jsonable):
+    name: str
+    messages: list[dict]
+    trace_id: str | None = None
+    last_chat_cost: float | None = None
+    last_chat_duration: float | None = None
 
 
 class ChatPage(AppPage):
@@ -52,50 +55,100 @@ class ChatPage(AppPage):
     URL_PATH: str = "/chat"
     ENABLE_HEADER: bool = False
     ENABLE_FOOTER: bool = False
-    DEFAULT_MESSAGE: ChatMessage = ChatMessage(
-        role="assistant",
-        content="How may I assist you today?",
-        tool_output="",
-    )
+    DEFAULT_MESSAGE: dict = {
+        "role": "assistant",
+        "content": "How may I assist you today?",
+    }
 
     @classmethod
     async def _async_main(cls) -> None:
+
         if "messages" not in st.session_state.keys():
             st.session_state.messages = [cls.DEFAULT_MESSAGE]
 
-        st.sidebar.button(
-            "Clear Chat History", on_click=cls.clear_chat_history
-        )
-        if "last_chat_cost" not in st.session_state.keys():
-            st.session_state.last_chat_cost = 0
-        if st.session_state.last_chat_cost > 0:
-            st.sidebar.markdown(
-                f"**Last Chat Cost:** ${st.session_state.last_chat_cost:.7f}"
+        if len(st.session_state.messages) <= 1:
+            st.success(
+                "Welcome to the [forecasting-tools](https://github.com/Metaculus/forecasting-tools) chatbot! "
+                "Choose which tools you want to use, "
+                "and check out the premade examples for what the chat can do! "
+                "Click 'Clear Chat History' to start a new conversation. "
             )
+
+        cls.display_top_sidebar_items()
         model_choice = cls.display_model_selector()
         active_tools = cls.display_tools()
+        cls.display_chat_metadata()
+        cls.display_premade_examples()
+        st.sidebar.write("---")
         cls.display_messages(st.session_state.messages)
 
         if prompt := st.chat_input():
             st.session_state.messages.append(
-                ChatMessage(role="user", content=prompt)
+                {"role": "user", "content": prompt}
             )
             with st.chat_message("user"):
                 st.write(prompt)
 
-        if st.session_state.messages[-1].role != "assistant":
+        if st.session_state.messages[-1]["role"] != "assistant":
             with MonetaryCostManager(10) as cost_manager:
-                new_messages = await cls.generate_response(
-                    prompt, active_tools, model_choice
-                )
+                start_time = time.time()
+                await cls.generate_response(prompt, active_tools, model_choice)
                 st.session_state.last_chat_cost = cost_manager.current_usage
-            st.session_state.messages.extend(new_messages)
+                end_time = time.time()
+                st.session_state.last_chat_duration = end_time - start_time
             st.rerun()
+
+    @classmethod
+    def display_messages(cls, messages: list[dict]) -> None:
+        assistant_message_num = 0
+        for message in messages:
+            output_emoji = "🔍"
+            call_emoji = "📞"
+            if "type" in message and message["type"] == "function_call":
+                call_id = message["call_id"]
+                with st.sidebar.expander(
+                    f"{call_emoji}M{assistant_message_num} Call: {call_id}"
+                ):
+                    st.write(f"Function: {message['name']}")
+                    st.write(f"Arguments: {message['arguments']}")
+                    continue
+            if "type" in message and message["type"] == "function_call_output":
+                call_id = message["call_id"]
+                with st.sidebar.expander(
+                    f"{output_emoji}M{assistant_message_num} Output: {call_id}"
+                ):
+                    st.write(message["output"])
+                    continue
+
+            role = message["role"]
+            with st.chat_message(role):
+                if role == "assistant":
+                    assistant_message_num += 1
+                content = message["content"]
+                if isinstance(content, list):
+                    text = content[0]["text"]
+                else:
+                    text = content
+                st.write(ReportDisplayer.clean_markdown(text))
+
+    @classmethod
+    def display_top_sidebar_items(cls) -> None:
+        local_streamlit_mode = (
+            os.getenv("LOCAL_STREAMLIT_MODE", "false").lower() == "true"
+        )
+        if local_streamlit_mode:
+            if st.sidebar.checkbox("Debug Mode", value=True):
+                st.session_state["debug_mode"] = True
+            else:
+                st.session_state["debug_mode"] = False
+        st.sidebar.button(
+            "Clear Chat History", on_click=cls.clear_chat_history
+        )
 
     @classmethod
     def display_model_selector(cls) -> str:
         model_choice = st.sidebar.text_input(
-            "Select a model",
+            "Select model for chat (not tools)",
             value="openrouter/google/gemini-2.5-pro-preview",  # "gemini/gemini-2.5-pro-preview-03-25"
         )
         if "o1-pro" in model_choice or "gpt-4.5" in model_choice:
@@ -105,19 +158,23 @@ class ChatPage(AppPage):
         return model_choice
 
     @classmethod
-    def display_tools(cls) -> list[Tool]:
-        default_tools: list[Tool] = [
-            TopicGenerator().find_random_headlines_tool,
-            QuestionDecomposer().decompose_into_questions_tool,
-            QuestionOperationalizer().question_operationalizer_tool,
-            perplexity_search,
+    def get_chat_tools(cls) -> list[Tool]:
+        return [
+            TopicGenerator.find_random_headlines_tool,
+            QuestionDecomposer.decompose_into_questions_tool,
+            QuestionOperationalizer.question_operationalizer_tool,
+            perplexity_pro_search,
             get_general_news_with_asknews,
             smart_searcher_search,
             grab_question_details_from_metaculus,
             grab_open_questions_from_tournament,
-            TopicGenerator().get_headlines_on_random_company_tool,
+            TopicGenerator.get_headlines_on_random_company_tool,
+            perplexity_quick_search,
         ]
 
+    @classmethod
+    def display_tools(cls) -> list[Tool]:
+        default_tools: list[Tool] = cls.get_chat_tools()
         bot_options = get_all_important_bot_classes()
         bot_choice = st.sidebar.selectbox(
             "Select a bot for forecast_question_tool",
@@ -127,24 +184,128 @@ class ChatPage(AppPage):
         default_tools.append(create_tool_for_forecasting_bot(bot))
 
         active_tools: list[Tool] = []
-        with st.sidebar:
+        with st.sidebar.expander("Select Tools"):
+            tool_names = [tool.name for tool in default_tools]
+            all_checked = all(
+                st.session_state.get(f"tool_{name}", True)
+                for name in tool_names
+            )
+            toggle_label = "Toggle all Tools"
+            if st.button(toggle_label):
+                for name in tool_names:
+                    st.session_state[f"tool_{name}"] = not all_checked
             for tool in default_tools:
-                tool_active = st.checkbox(tool.name, value=True)
+                key = f"tool_{tool.name}"
+                if key not in st.session_state:
+                    st.session_state[key] = True
+
+                tool_active = st.checkbox(tool.name, key=key)
+
                 if tool_active:
                     active_tools.append(tool)
 
+        with st.sidebar.expander("Tool Explanations"):
+            for tool in active_tools:
+                if isinstance(tool, AgentTool):
+                    property_description = ""
+                    for property_name, metadata in tool.params_json_schema[
+                        "properties"
+                    ].items():
+                        description = metadata.get(
+                            "description", "No description provided"
+                        )
+                        field_type = metadata.get("type", "No type provided")
+                        property_description += f"- {property_name}: {description} (type: {field_type})\n"
+                    st.write(
+                        clean_indents(
+                            f"""
+                            **{tool.name}**
+
+                            {clean_indents(tool.description)}
+
+                            {clean_indents(property_description)}
+
+                            ---
+
+                            """
+                        )
+                    )
         return active_tools
 
     @classmethod
-    def display_messages(cls, messages: list[ChatMessage]) -> None:
-        for i, message in enumerate(messages):
-            with st.chat_message(message.role):
-                st.write(message.content)
+    def display_chat_metadata(cls) -> None:
+        with st.sidebar.expander("Chat Metadata"):
+            if "last_chat_cost" not in st.session_state.keys():
+                st.session_state.last_chat_cost = 0
+            if st.session_state.last_chat_cost > 0:
+                st.markdown(
+                    f"**Last Chat Cost:** ${st.session_state.last_chat_cost:.7f}"
+                )
+            if "last_chat_duration" in st.session_state.keys():
+                st.markdown(
+                    f"**Last Chat Duration:** {st.session_state.last_chat_duration:.2f} seconds"
+                )
+            if "trace_id" in st.session_state.keys():
+                trace_id = st.session_state.trace_id
+                st.markdown(
+                    f"**Last Conversation ID:** [{trace_id}](https://platform.openai.com/traces/trace?trace_id={trace_id})"
+                )
 
-            if message.tool_output.strip():
-                with st.sidebar:
-                    with st.expander(f"Tool Calls Message {i//2}"):
-                        st.write(message.tool_output)
+    @classmethod
+    def display_premade_examples(cls) -> None:
+        save_path = "front_end/saved_chats.json"
+        debug_mode = st.session_state.get("debug_mode", False)
+        try:
+            saved_sessions = ChatSession.load_json_from_file_path(save_path)
+        except Exception:
+            saved_sessions = []
+            st.sidebar.warning("No saved chat sessions found")
+        with st.sidebar.expander("Premade Examples"):
+            if saved_sessions:
+                for session in saved_sessions:
+                    if st.button(session.name, key=session.name):
+                        st.session_state.messages = session.messages
+                        if session.trace_id:
+                            st.session_state.trace_id = session.trace_id
+                        if session.last_chat_cost:
+                            st.session_state.last_chat_cost = (
+                                session.last_chat_cost
+                            )
+                        if session.last_chat_duration:
+                            st.session_state.last_chat_duration = (
+                                session.last_chat_duration
+                            )
+                        st.rerun()
+                    if debug_mode:
+                        if st.button("🗑️", key=f"delete_{session.name}"):
+                            saved_sessions.remove(session)
+                            ChatSession.save_object_list_to_file_path(
+                                saved_sessions, save_path
+                            )
+                            st.sidebar.success(
+                                f"Chat session '{session.name}' deleted."
+                            )
+                            st.rerun()
+            if debug_mode:
+                if "chat_save_name" not in st.session_state:
+                    st.session_state["chat_save_name"] = ""
+                st.text_input("Chat Session Name", key="chat_save_name")
+                if st.button("Save Chat Session"):
+                    chat_session = ChatSession(
+                        name=st.session_state["chat_save_name"],
+                        messages=st.session_state.messages,
+                        trace_id=st.session_state.trace_id,
+                        last_chat_cost=st.session_state.last_chat_cost,
+                        last_chat_duration=st.session_state.last_chat_duration,
+                    )
+                    saved_sessions.append(chat_session)
+                    ChatSession.save_object_list_to_file_path(
+                        saved_sessions, save_path
+                    )
+                    st.sidebar.success(
+                        f"Chat session '{chat_session.name}' saved."
+                    )
+                    st.rerun()
 
     @classmethod
     async def generate_response(
@@ -152,25 +313,18 @@ class ChatPage(AppPage):
         prompt_input: str | None,
         active_tools: list[Tool],
         model_choice: str,
-    ) -> list[ChatMessage]:
-        if prompt_input is None:
-            return [
-                ChatMessage(
-                    role="assistant",
-                    content="You didn't enter any message",
-                )
-            ]
+    ) -> None:
+        if not prompt_input:
+            return
 
         instructions = clean_indents(
             """
             You are a helpful assistant.
-            When a tool gives you answers that are cited, ALWAYS include the links in your responses.
-
-            If you can, you infer the inputs to tools rather than ask for them.
-
-            If a tool call fails, you say so rather than giving a back up answer.
-
-            Whenever possible, please parralelize your tool calls.
+            - When a tool gives you answers that are cited, ALWAYS include the links in your responses. Keep the links inline as much as you can.
+            - If you can, you infer the inputs to tools rather than ask for them.
+            - If a tool call fails, you say so rather than giving a back up answer.
+            - Whenever possible, please paralelize your tool calls and split tasks into parallel subtasks. However, don't do this if tasks are dependent on each other (e.g. you need metaculus question information to run a forecast)
+            - By default, restate ALL the output that tools give you in readable markdown to the user. Do this even if the tool output is long.
             """
         )
 
@@ -182,39 +336,47 @@ class ChatPage(AppPage):
             handoffs=[],
         )
 
-        openai_messages = [
-            m.to_open_ai_message() for m in st.session_state.messages
-        ]
-        result = Runner.run_streamed(agent, openai_messages, max_turns=20)
-        streamed_text = ""
-        reasoning_text = ""
-        with st.chat_message("assistant"):
-            placeholder = st.empty()
-        with st.spinner("Thinking..."):
-            async for event in result.stream_events():
-                new_reasoning = ""
-                if event.type == "raw_response_event" and isinstance(
-                    event.data, ResponseTextDeltaEvent
-                ):
-                    streamed_text += event.data.delta
-                elif event.type == "run_item_stream_event":
-                    new_reasoning = f"{cls._grab_text_of_item(event.item)}\n\n"
-                    reasoning_text += new_reasoning  # TODO: Don't define this as reasoning, but as a new tool-role message
-                # elif event.type == "agent_updated_stream_event":
-                #     reasoning_text += f"Agent updated: {event.new_agent.name}\n\n"
-                placeholder.write(streamed_text)
-                if new_reasoning:
-                    st.sidebar.write(new_reasoning)
+        with trace("Chat App") as chat_trace:
+            result = Runner.run_streamed(
+                agent, st.session_state.messages, max_turns=20
+            )
+            streamed_text = ""
+            with st.chat_message("assistant"):
+                placeholder = st.empty()
+            with st.spinner("Thinking..."):
+                async for event in result.stream_events():
+                    new_reasoning = ""
+                    if event.type == "raw_response_event" and isinstance(
+                        event.data, ResponseTextDeltaEvent
+                    ):
+                        streamed_text += event.data.delta
+                    elif event.type == "run_item_stream_event":
+                        new_reasoning = (
+                            f"{cls._grab_text_of_item(event.item)}\n\n"
+                        )
+                    # elif event.type == "agent_updated_stream_event":
+                    #     reasoning_text += f"Agent updated: {event.new_agent.name}\n\n"
+                    placeholder.write(streamed_text)
+                    if new_reasoning:
+                        st.sidebar.write(new_reasoning)
 
         logger.info(f"Chat finished with output: {streamed_text}")
-        new_messages = [
-            ChatMessage(
-                role="assistant",
-                content=ReportDisplayer.clean_markdown(streamed_text),
-                tool_output=ReportDisplayer.clean_markdown(reasoning_text),
-            )
-        ]
-        return new_messages
+        st.session_state.messages = result.to_input_list()
+        st.session_state.trace_id = chat_trace.trace_id
+
+        last_3_messages = st.session_state.messages[-3:]
+        for message in last_3_messages:
+            if (
+                "type" in message
+                and message["type"] == "function_call_output"
+                and "gemini" in model_choice
+                and "question_details" in message["call_id"]
+            ):
+                last_message = st.session_state.messages[-1]
+                output = message["output"]
+                last_message["content"][0][
+                    "text"
+                ] += f"\n\n---\n\nNOTICE: There is a bug in gemini tool calling in OpenAI agents SDK, here is the content. Consider using o4-mini:\n\n {output}."
 
     @classmethod
     def _grab_text_of_item(cls, item: RunItem) -> str:
@@ -247,6 +409,7 @@ class ChatPage(AppPage):
     @classmethod
     def clear_chat_history(cls) -> None:
         st.session_state.messages = [cls.DEFAULT_MESSAGE]
+        st.session_state.trace_id = None
 
 
 if __name__ == "__main__":

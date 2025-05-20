@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Sequence
+from typing import Any
 
 import typeguard
 from pydantic import AliasChoices, BaseModel, Field
@@ -30,9 +30,8 @@ class BenchmarkForBot(BaseModel, Jsonable):
     git_commit_hash: str
     forecast_bot_config: dict[str, Any]
     code: str | None = None
-    forecast_reports: Sequence[
-        BinaryReport | NumericReport | MultipleChoiceReport
-    ]
+    forecast_reports: list[BinaryReport | NumericReport | MultipleChoiceReport]
+    failed_report_errors: list[str] = Field(default_factory=list)
 
     @property
     def average_expected_baseline_score(self) -> float:
@@ -86,3 +85,7 @@ class BenchmarkForBot(BaseModel, Jsonable):
         if self.explicit_description is not None:
             return self.explicit_description
         return f"This benchmark ran the {self.forecast_bot_class_name} bot on {self.num_input_questions} questions."
+
+    @property
+    def num_failed_forecasts(self) -> int:
+        return len(self.failed_report_errors)

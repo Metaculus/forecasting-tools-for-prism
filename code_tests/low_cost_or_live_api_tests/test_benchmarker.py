@@ -7,8 +7,10 @@ import pytest
 
 from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
     ForecastingTestManager,
+    MockBot,
 )
 from forecasting_tools.data_models.benchmark_for_bot import BenchmarkForBot
+from forecasting_tools.data_models.questions import BinaryQuestion
 from forecasting_tools.forecast_bots.official_bots.q2_template_bot import (
     Q2TemplateBot2025,
 )
@@ -72,6 +74,51 @@ async def test_benchmarks_run_properly_with_mocked_bot(
         )
 
 
+async def test_correct_number_of_final_forecasts_for_multiple_bots() -> None:
+    class Bot1(MockBot):
+        pass
+
+    class Bot2(MockBot):
+        pass
+
+    class Bot3(MockBot):
+        pass
+
+    bot1 = Bot1()
+    bot2 = Bot2()
+    bot3 = Bot3()
+
+    benchmarks = await Benchmarker(
+        forecast_bots=[bot1, bot2, bot3],
+        number_of_questions_to_use=30,
+        concurrent_question_batch_size=4,
+    ).run_benchmark()
+
+    assert len(benchmarks) == 3
+    for i, benchmark in enumerate(benchmarks):
+        assert benchmarks[i].forecast_bot_class_name == f"Bot{i + 1}"
+        assert len(benchmark.forecast_reports) == 30
+        assert benchmark.num_input_questions == 30
+        assert benchmark.num_failed_forecasts == 0
+        assert_all_benchmark_object_fields_are_not_none(benchmark, 30)
+
+    bot1_questions = [
+        r.question.question_text for r in benchmarks[0].forecast_reports
+    ]
+    bot2_questions = [
+        r.question.question_text for r in benchmarks[1].forecast_reports
+    ]
+    bot3_questions = [
+        r.question.question_text for r in benchmarks[2].forecast_reports
+    ]
+    assert (
+        len(set(bot1_questions))
+        == len(set(bot2_questions))
+        == len(set(bot3_questions))
+        == len(set(bot1_questions + bot2_questions + bot3_questions))
+    )
+
+
 def assert_all_benchmark_object_fields_are_not_none(
     benchmark: BenchmarkForBot, num_questions: int
 ) -> None:
@@ -126,7 +173,7 @@ def assert_all_benchmark_object_fields_are_not_none(
         benchmark.forecast_bot_class_name is not None
     ), "Forecast bot class name is not set"
     assert (
-        benchmark.forecast_bot_class_name == "TemplateBot"
+        len(benchmark.forecast_bot_class_name) > 0
     ), "Forecast bot class name is not set correctly"
     assert (
         len(benchmark.forecast_reports) == num_questions
@@ -234,3 +281,36 @@ def test_benchmark_for_bot_naming_and_description() -> None:
     )
     assert benchmark.name == "explicit name"
     assert benchmark.description == "explicit description"
+
+
+class FailingBot(MockBot):
+    async def _run_forecast_on_binary(
+        self, question: BinaryQuestion, research: str
+    ):  # NOSONAR
+        if question.question_text == "fail":
+            raise RuntimeError("Simulated failure")
+        return await super()._run_forecast_on_binary(question, research)
+
+
+async def test_failed_and_missing_forecasts_are_tracked(mocker: Mock) -> None:
+    bot = FailingBot()
+
+    questions = [
+        ForecastingTestManager.get_fake_binary_question() for _ in range(2)
+    ] + [ForecastingTestManager.get_fake_binary_question() for _ in range(2)]
+    questions[1].question_text = "fail"
+    questions[3].question_text = "fail"
+
+    benchmarks = await Benchmarker(
+        forecast_bots=[bot],
+        questions_to_use=questions,
+        concurrent_question_batch_size=2,
+    ).run_benchmark()
+    benchmark = benchmarks[0]
+
+    assert benchmark.num_input_questions == 4
+    assert len(benchmark.forecast_reports) == 2
+    assert benchmark.num_failed_forecasts == 2
+    assert all(
+        "Simulated failure" in err for err in benchmark.failed_report_errors
+    )

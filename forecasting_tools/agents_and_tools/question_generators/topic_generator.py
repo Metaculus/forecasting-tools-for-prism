@@ -3,9 +3,9 @@ import logging
 import random
 from datetime import datetime
 
-from agents import function_tool
 from pydantic import BaseModel
 
+from forecasting_tools.ai_models.agent_wrappers import agent_tool
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
@@ -250,7 +250,7 @@ class TopicGenerator:
         )
         return company, topics
 
-    @function_tool
+    @agent_tool
     @staticmethod
     def find_random_headlines_tool() -> str:
         """
@@ -265,12 +265,11 @@ class TopicGenerator:
             topic_list += f"- {topic}\n"
         return topic_list
 
-    @function_tool
+    @agent_tool
     @staticmethod
     def get_headlines_on_random_company_tool() -> str:
         """
-        By picking a random company, finds a list of news items on the company.
-        Output: List of news items on the company.
+        By picking a randomly generated Ticker symbol, finds a list of news items on a company.
         """
         company, topics = asyncio.run(
             TopicGenerator.get_news_on_random_company()

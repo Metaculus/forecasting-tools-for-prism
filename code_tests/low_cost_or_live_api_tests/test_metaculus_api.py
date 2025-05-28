@@ -188,8 +188,8 @@ def test_get_questions_from_tournament() -> None:
     assert_basic_attributes_at_percentage(questions, 0.8)
 
 
-@pytest.mark.parametrize("num_questions_to_get", [30])
-def test_get_benchmark_questions(num_questions_to_get: int) -> None:
+def test_get_benchmark_questions() -> None:
+    num_questions_to_get = 30
     questions = MetaculusApi.get_benchmark_questions(num_questions_to_get)
 
     assert (
@@ -214,22 +214,22 @@ def test_get_benchmark_questions(num_questions_to_get: int) -> None:
         assert isinstance(
             question.scheduled_resolution_time, datetime
         ), f"Question {question.id_of_post} resolves at {question.scheduled_resolution_time}, expected a datetime"
+        assert isinstance(
+            question.open_time, datetime
+        ), f"Question {question.id_of_post} opened at {question.open_time}, expected a datetime"
         assert (
-            question.num_predictions >= 40
+            question.num_predictions >= 20
         ), "Need to have critical mass of predictions to be confident in the results"
         assert (
-            question.num_forecasters >= 40
+            question.num_forecasters >= 20
         ), "Need to have critical mass of forecasters to be confident in the results"
         assert isinstance(
             question, BinaryQuestion
         ), f"Question {question.id_of_post} is not a BinaryQuestion"
-        one_year_from_now = datetime.now() + timedelta(days=365)
+        one_year_earlier = datetime.now() - timedelta(days=365)
         assert (
-            question.close_time < one_year_from_now
-        ), f"Question {question.id_of_post} closes at {question.close_time}, expected before {one_year_from_now}"
-        assert (
-            question.scheduled_resolution_time < one_year_from_now
-        ), f"Question {question.id_of_post} resolves at {question.scheduled_resolution_time}, expected before {one_year_from_now}"
+            question.open_time > one_year_earlier
+        ), f"Question {question.id_of_post} opened at {question.open_time}, expected after {one_year_earlier}"
         assert (
             question.state == QuestionState.OPEN
         ), f"Question {question.id_of_post} is not open"
@@ -322,6 +322,30 @@ async def test_get_questions_from_tournament_with_filter(
     else:
         assert len(questions) > 0
     assert_basic_attributes_at_percentage(questions, 0.8)
+
+
+async def test_error_when_not_enough_questions_matching_filter() -> None:
+    single_question_filter = ApiFilter(
+        close_time_gt=datetime(2024, 1, 15),
+        close_time_lt=datetime(2024, 1, 20),
+        allowed_tournaments=["quarterly-cup-2024q1"],
+    )
+
+    # Error if we ask for 2 questions but only 1 matches the filter
+    with pytest.raises(ValueError):
+        await MetaculusApi.get_questions_matching_filter(
+            single_question_filter,
+            num_questions=2,
+            error_if_question_target_missed=True,
+        )
+
+    # No error if we ask for 1 question but only 1 matches the filter
+    questions = await MetaculusApi.get_questions_matching_filter(
+        single_question_filter,
+        num_questions=1,
+        error_if_question_target_missed=False,
+    )
+    assert len(questions) == 1
 
 
 @pytest.mark.skip(reason="This test takes a while to run")

@@ -82,7 +82,7 @@ async def structure_output(
         {pydantic_instructions}
 
 
-        Remember to include links!
+        Please return an answer in the format given to you, and remember to include links if they are included!
         """
     ).strip()
 

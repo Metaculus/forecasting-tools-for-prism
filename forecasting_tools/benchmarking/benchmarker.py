@@ -1,6 +1,4 @@
-import inspect
 import logging
-import subprocess
 import time
 from datetime import datetime
 from typing import Sequence
@@ -10,7 +8,7 @@ import typeguard
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
-from forecasting_tools.data_models.benchmark_for_bot import BenchmarkForBot
+from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
 from forecasting_tools.data_models.data_organizer import ReportTypes
 from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
@@ -72,6 +70,7 @@ class Benchmarker:
         if (
             file_path_to_save_reports is not None
             and not file_path_to_save_reports.endswith("/")
+            and not file_path_to_save_reports.endswith(".json")
         ):
             file_path_to_save_reports += "/"
         self.file_path_to_save_reports = file_path_to_save_reports
@@ -109,7 +108,7 @@ class Benchmarker:
         )
         for batch in batches:
             await self._run_a_batch(batch)
-            self._save_benchmarks_to_file_if_configured(benchmarks)
+            self.save_benchmarks_to_file_if_configured(benchmarks)
         return benchmarks
 
     async def _run_a_batch(self, batch: QuestionBatch) -> None:
@@ -188,53 +187,30 @@ class Benchmarker:
     ) -> list[BenchmarkForBot]:
         benchmarks: list[BenchmarkForBot] = []
         for bot in bots:
-            try:
-                source_code = inspect.getsource(bot.__class__)
-                if self.code_to_snapshot:
-                    for item in self.code_to_snapshot:
-                        source_code += f"\n\n#------------{item.__name__}-------------\n\n{inspect.getsource(item)}"
-            except Exception:
-                logger.warning(
-                    f"Could not get source code for {bot.__class__.__name__}"
-                )
-                source_code = None
-            benchmark = BenchmarkForBot(
-                forecast_bot_class_name=bot.__class__.__name__,
-                forecast_reports=[],
-                forecast_bot_config=bot.get_config(),
-                time_taken_in_minutes=None,
-                total_cost=None,
-                git_commit_hash=self._get_git_commit_hash(),
-                code=source_code,
+            benchmark = BenchmarkForBot.initialize_benchmark_for_bot(
+                bot,
                 num_input_questions=len(chosen_questions),
+                additional_code=self.code_to_snapshot,
             )
             benchmarks.append(benchmark)
         return benchmarks
 
-    def _save_benchmarks_to_file_if_configured(
+    def save_benchmarks_to_file_if_configured(
         self, benchmarks: list[BenchmarkForBot]
     ) -> None:
         if self.file_path_to_save_reports is None:
             return
-        file_path_to_save_reports = (
-            f"{self.file_path_to_save_reports}"
-            f"benchmarks_"
-            f"{self.initialization_timestamp.strftime('%Y-%m-%d_%H-%M-%S')}"
-            f".json"
-        )
+        if self.file_path_to_save_reports.endswith(".json"):
+            file_path_to_save_reports = self.file_path_to_save_reports
+        else:
+            if not self.file_path_to_save_reports.endswith("/"):
+                self.file_path_to_save_reports += "/"
+            file_path_to_save_reports = (
+                f"{self.file_path_to_save_reports}"
+                f"benchmarks_"
+                f"{self.initialization_timestamp.strftime('%Y-%m-%d_%H-%M-%S')}"
+                f".json"
+            )
         BenchmarkForBot.save_object_list_to_file_path(
             benchmarks, file_path_to_save_reports
         )
-
-    @classmethod
-    def _get_git_commit_hash(cls) -> str:
-        try:
-            return (
-                subprocess.check_output(
-                    ["git", "rev-parse", "--short", "HEAD"]
-                )
-                .decode("ascii")
-                .strip()
-            )
-        except Exception:
-            return "no_git_hash"

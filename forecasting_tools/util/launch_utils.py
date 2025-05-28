@@ -451,7 +451,7 @@ class SheetOrganizer:
     ) -> LaunchQuestion:
         question_copy = bot_question.model_copy(deep=True)
         assert question_copy.open_time is not None
-        question_copy.open_time -= timedelta(days=2)
+        question_copy.open_time -= timedelta(days=2.5)
         question_copy.question_weight = 1
         return question_copy
 
@@ -555,7 +555,7 @@ class SheetOrganizer:
             if question_type == "bots":
                 required_duration = timedelta(hours=2)
             elif question_type == "pros":
-                required_duration = timedelta(days=2, hours=2)
+                required_duration = timedelta(days=2, hours=14)
             else:
                 raise ValueError(f"Invalid question type: {question_type}")
 
@@ -921,7 +921,7 @@ class SheetOrganizer:
                     title_file, "\n".join(non_duplicate_titles)
                 )
 
-            if len(warnings) > 10:
+            if len(warnings) > 8:
                 warnings = [
                     LaunchWarning(
                         warning=f"There are {len(warnings)} duplicate titles. You probably just reran the script.",

@@ -77,7 +77,11 @@ class ForecastBot(ABC):
         publish_reports_to_metaculus: bool = False,
         folder_to_save_reports_to: str | None = None,
         skip_previously_forecasted_questions: bool = False,
-        llms: dict[str, str | GeneralLlm] | None = None,
+        llms: (
+            dict[str, str | GeneralLlm | None] | None
+        ) = None,  # Default LLMs are used if llms is set to None
+        enable_summarize_research: bool = True,
+        parameters_to_exclude_from_config_dict: list[str] | None = None,
     ) -> None:
         assert (
             research_reports_per_question > 0
@@ -85,6 +89,10 @@ class ForecastBot(ABC):
         assert (
             predictions_per_research_report > 0
         ), "Must run at least one prediction"
+        if use_research_summary_to_forecast and not enable_summarize_research:
+            raise ValueError(
+                "Cannot use research summary to forecast if summarize_research is False"
+            )
         self.research_reports_per_question = research_reports_per_question
         self.predictions_per_research_report = predictions_per_research_report
         self.use_research_summary_to_forecast = (
@@ -95,6 +103,10 @@ class ForecastBot(ABC):
         self.skip_previously_forecasted_questions = (
             skip_previously_forecasted_questions
         )
+        self.parameters_to_exclude_from_config_dict = (
+            parameters_to_exclude_from_config_dict or []
+        )
+        self.enable_summarize_research = enable_summarize_research
         self._note_pads: list[Notepad] = []
         self._note_pad_lock = asyncio.Lock()
         self._llms = llms or self._llm_config_defaults()
@@ -250,15 +262,13 @@ class ForecastBot(ABC):
     async def summarize_research(
         self, question: MetaculusQuestion, research: str
     ) -> str:
-        logger.info(f"Summarizing research for question: {question.page_url}")
-        default_summary_size = 2500
-        default_summary = f"{research[:default_summary_size]}..."
+        if not self.enable_summarize_research:
+            return "Summarize research was disabled for this run"
 
-        if len(research) < default_summary_size:
-            return research
-
-        final_summary = default_summary
         try:
+            logger.info(
+                f"Summarizing research for question: {question.page_url}"
+            )
             model = self.get_llm("summarizer", "llm")
             prompt = clean_indents(
                 f"""
@@ -273,12 +283,14 @@ class ForecastBot(ABC):
                 """
             )
             summary = await model.invoke(prompt)
-            final_summary = summary
+            return summary
         except Exception as e:
-            logger.debug(
-                f"Could not summarize research. Defaulting to first {default_summary_size} characters: {e}"
+            if self.use_research_summary_to_forecast:
+                raise e  # If the summary is needed for research, then returning the normal error message as the research will confuse the AI
+            logger.warning(f"Could not summarize research. {e}")
+            return (
+                f"{e.__class__.__name__} exception while summarizing research"
             )
-        return final_summary
 
     def get_config(self) -> dict[str, Any]:
         params = inspect.signature(self.__init__).parameters
@@ -290,6 +302,7 @@ class ForecastBot(ABC):
                 or name == "kwargs"
                 or name == "args"
                 or name == "llms"
+                or name in self.parameters_to_exclude_from_config_dict
             ):
                 continue
             value = getattr(self, name)
@@ -303,8 +316,8 @@ class ForecastBot(ABC):
         config["llms"] = llm_dict
         return config
 
-    def make_llm_dict(self) -> dict[str, str | dict[str, Any]]:
-        llm_dict: dict[str, str | dict[str, Any]] = {}
+    def make_llm_dict(self) -> dict[str, str | dict[str, Any] | None]:
+        llm_dict: dict[str, str | dict[str, Any] | None] = {}
         for key, value in self._llms.items():
             if isinstance(value, GeneralLlm):
                 llm_dict[key] = value.to_dict()
@@ -814,6 +827,10 @@ class ForecastBot(ABC):
             )
 
         llm = self._llms[purpose]
+        if llm is None:
+            raise ValueError(
+                f"LLM is undefined for purpose: {purpose}. It was probably not defined in defaults."
+            )
         return_value = None
 
         if guarantee_type is None:
@@ -833,13 +850,15 @@ class ForecastBot(ABC):
 
         return return_value
 
-    def set_llm(self, llm: GeneralLlm | str, purpose: str = "default") -> None:
+    def set_llm(
+        self, llm: GeneralLlm | str | None, purpose: str = "default"
+    ) -> None:
         if purpose not in self._llms:
             raise ValueError(f"Unknown llm purpose: {purpose}")
         self._llms[purpose] = llm
 
     @classmethod
-    def _llm_config_defaults(cls) -> dict[str, str | GeneralLlm]:
+    def _llm_config_defaults(cls) -> dict[str, str | GeneralLlm | None]:
         """
         Returns a dictionary of default llms for the bot.
         The keys are the purpose of the llm and the values are the llms (model name or GeneralLlm object).

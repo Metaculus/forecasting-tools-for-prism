@@ -1,8 +1,9 @@
 import textwrap
 from datetime import datetime
 from typing import TypeVar
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
+from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.data_models.binary_report import BinaryReport
 from forecasting_tools.data_models.forecast_report import ReasonedPrediction
 from forecasting_tools.data_models.multiple_choice_report import (
@@ -42,10 +43,12 @@ class ForecastingTestManager:
 
     @classmethod
     def get_fake_binary_question(
-        cls, community_prediction: float | None = 0.7
+        cls,
+        community_prediction: float | None = 0.7,
+        question_text: str = "Will TikTok be banned in the US?",
     ) -> BinaryQuestion:
         question = BinaryQuestion(
-            question_text="Will TikTok be banned in the US?",
+            question_text=question_text,
             community_prediction_at_access_time=community_prediction,
         )
         return question
@@ -139,6 +142,15 @@ class MockBot(ForecastBot):
     numeric_calls: int = 0
     summarize_calls: int = 0
 
+    def _llm_config_defaults(self) -> dict[str, str | GeneralLlm | None]:
+        mock_llm = GeneralLlm(model="fake_llm_model")
+        mock_llm.invoke = AsyncMock(return_value="Mock LLM Call")
+        return {
+            "default": mock_llm,
+            "summarizer": mock_llm,
+            "researcher": mock_llm,
+        }
+
     async def run_research(self, question: MetaculusQuestion) -> str:
         self.__class__.research_calls += 1
         return "Mock research"
@@ -217,11 +229,11 @@ class MockBot(ForecastBot):
             reasoning="Mock rationale",
         )
 
-    async def summarize(
+    async def summarize_research(
         self,
         question: MetaculusQuestion,
         research: str,
-        prediction: ReasonedPrediction,
     ) -> str:
         self.__class__.summarize_calls += 1
-        return "Mock summary"
+        summary = await super().summarize_research(question, research)
+        return summary

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def run_optimizer() -> None:
     # -------- Configure the optimizer -----
     evaluation_questions = QuestionResearchSnapshot.load_json_from_file_path(
-        "logs/forecasts/question_snapshots_v2_157qs.json"
+        "logs/forecasts/question_snapshots_v1.6._342qs__>15f__<1.5yr_open.json"
     )
     forecast_llm = GeneralLlm(
         model="openrouter/openai/gpt-4.1-nano",
@@ -24,13 +24,15 @@ async def run_optimizer() -> None:
     )
     ideation_llm = "openrouter/google/gemini-2.5-pro-preview"
     # ideation_llm = "openrouter/anthropic/claude-sonnet-4"
-    for snapshot in evaluation_questions:
-        snapshot.question.background_info = None
+    remove_background_info = True
     num_prompts_to_try = 25
     full_runs = 5
     questions_batch_size = 80
 
     # ----- Run the optimizer -----
+    if remove_background_info:
+        for snapshot in evaluation_questions:
+            snapshot.question.background_info = None
     for run in range(full_runs):
         logger.info(f"Run {run + 1} of {full_runs}")
         logger.info(f"Loaded {len(evaluation_questions)} evaluation questions")

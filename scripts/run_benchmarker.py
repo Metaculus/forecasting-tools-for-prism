@@ -7,8 +7,10 @@ from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import 
     MonetaryCostManager,
 )
 from forecasting_tools.benchmarking.benchmarker import Benchmarker
+from forecasting_tools.benchmarking.question_research_snapshot import (
+    QuestionResearchSnapshot,
+)
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
 from forecasting_tools.util.custom_logger import CustomLogger
 from run_bot import configure_and_run_bot, get_all_bots
 
@@ -35,7 +37,6 @@ def get_chosen_q2_bots() -> list[ForecastBot]:
             configure_and_run_bot(bot_name, return_bot_dont_run=True)
         )
         assert isinstance(bot, ForecastBot)
-        bot.predictions_per_research_report = 1
         bots.append(bot)
 
     return bots
@@ -43,20 +44,29 @@ def get_chosen_q2_bots() -> list[ForecastBot]:
 
 async def benchmark_forecast_bots() -> None:
     # ----- Configure the benchmarker -----
-    num_questions_to_use = 150
-    concurrent_batch_size = 10
+    concurrent_batch_size = 15
     bots = get_chosen_q2_bots()
     additional_code_to_snapshot = []
-    chosen_questions = MetaculusApi.get_benchmark_questions(
-        num_questions_to_use,
+    # num_questions_to_use = 150
+    # chosen_questions = MetaculusApi.get_benchmark_questions(
+    #     num_questions_to_use,
+    # )
+    snapshots = QuestionResearchSnapshot.load_json_from_file_path(
+        "logs/forecasts/question_snapshots_v1.6.train__112qs.json"
     )
+    chosen_questions = [snapshot.question for snapshot in snapshots]
     remove_background_info = True  # AIB (and real life questions) often don't have detailed background info
+    num_predictions_per_report: int | None = 1
 
     # ----- Run the benchmarker -----
 
     if remove_background_info:
         for question in chosen_questions:
             question.background_info = None
+
+    if num_predictions_per_report is not None:
+        for bot in bots:
+            bot.predictions_per_research_report = num_predictions_per_report
 
     with MonetaryCostManager() as cost_manager:
         for bot in bots:

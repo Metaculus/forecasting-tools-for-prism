@@ -170,10 +170,12 @@ class PromptOptimizer:
                 f"""
                 You are an expert prompt engineer. Your task is to generate {num_mutations_to_generate} new PROMPT IDEAS by mutating an existing forecasting prompt.
                 The original prompt is used by an AI to forecast binary questions.
+                Your ideas are being used to optimize a forecasting bot using a Genetic Algorithm inspired approach.
+                We are highlighting exploration over exploitation, but do want to strike a balance.
 
                 # Instructions
                 1. Please analyze the worst {num_worst_reports} scores from the previous prompt and identify what went wrong.
-                2. Run 3-5 searches on the web to find inspiration for novel forecasting techniques or prompt structures.
+                2. Run 3-10 searches on the web to find inspiration for novel forecasting techniques or prompt structures.
                 3. Generate {num_mutations_to_generate} new, distinct prompt IDEAS based on the original.
 
                 Please generate exactly {num_mutations_to_generate} new, distinct prompt IDEAS based on the original.
@@ -181,10 +183,11 @@ class PromptOptimizer:
                 1. Ask an AI to forecast a binary question.
                 2. Require a final binary float as the output.
 
-                For each idea please sequentially alternate between how much you try to mutate the original prompt:
-                - "slight modification, like changing wording, adding/removing a sentences or a small paragraph, reording steps, adding emphasis, etc",
-                - "significant variation, which should take a generally different approach and be a general rewrite while staying in general theme of the original",
-                - "highly diverse mutation/experiment that explores a substantially different structure or set of principles, focus on a completely different idea than in the original while still aiming for improving forecasting accuracy and using the same template variables",
+                For each idea please sequentially follow these policies to determine how much you try to mutate the original prompt:
+                1st idea: "slight modification, like changing wording, adding/removing a sentences or a small paragraph, reording steps, adding emphasis, etc",
+                2nd idea: "significant variation, which should take a generally different approach and be a general rewrite while staying in general theme of the original",
+                3rd idea: "highly diverse mutation/experiment that explores a substantially different structure or set of principles, focus on a completely different idea than in the original. Search until you find something novel.",
+                nth idea: ... continue alternating between significant variation and highly diverse (not slight)...
 
                 # Original Prompt Idea Details
                 Name: {parent_prompt_config.original_idea.short_name}
@@ -344,12 +347,12 @@ class PromptOptimizer:
                 Idea: {prompt_idea.idea}
 
                 This is a template prompt, and so you should add the following variables to the prompt:
-                {{question_text}}
-                {{background_info}}
-                {{resolution_criteria}}
-                {{fine_print}}
-                {{today}}
-                {{research}}
+                {{question_text}} - One sentence question text
+                {{background_info}} - 1-2 paragraphs of background information
+                {{resolution_criteria}} - 1-2 paragraphs of resolution criteria
+                {{fine_print}} - 1-2 paragraphs of fine print
+                {{today}} - The current date in the format YYYY-MM-DD
+                {{research}} - 4-20 paragraphs of research
 
                 Return the prompt and nothing but the prompt. The prompt will be run as is.
                 Ensure the prompt is complete, well-structured, and ready to use based on the idea provided.

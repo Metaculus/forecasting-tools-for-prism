@@ -75,7 +75,7 @@ class Benchmarker:
             and not file_path_to_save_reports.endswith(".json")
         ):
             file_path_to_save_reports += "/"
-        self.file_path_to_save_reports = file_path_to_save_reports
+        self._file_path_to_save_reports = file_path_to_save_reports
         self.initialization_timestamp = datetime.now()
         self.concurrent_question_batch_size = concurrent_question_batch_size
         self.code_to_snapshot = additional_code_to_snapshot
@@ -112,14 +112,14 @@ class Benchmarker:
             for batch in batches:
                 await self._run_a_batch(batch)
                 if batch.is_last_batch_for_benchmark:
-                    self.append_benchmarks_to_jsonl_if_configured(
+                    self._append_benchmarks_to_jsonl_if_configured(
                         [batch.benchmark]
                     )
         except KeyboardInterrupt:
             logger.warning(
                 "KeyboardInterrupt detected, saving current benchmark progress."
             )
-            self.append_benchmarks_to_jsonl_if_configured([batch.benchmark])
+            self._append_benchmarks_to_jsonl_if_configured([batch.benchmark])
             raise
         return benchmarks
 
@@ -211,12 +211,11 @@ class Benchmarker:
             benchmarks.append(benchmark)
         return benchmarks
 
-    def append_benchmarks_to_jsonl_if_configured(
-        self, benchmarks: list[BenchmarkForBot]
-    ) -> None:
-        if self.file_path_to_save_reports is None:
-            return
-        file_path = self.file_path_to_save_reports
+    @property
+    def benchmark_file_path(self) -> str | None:
+        if self._file_path_to_save_reports is None:
+            return None
+        file_path = self._file_path_to_save_reports
         if file_path.endswith(".json"):
             file_path = file_path[:-5] + ".jsonl"
         elif not file_path.endswith(".jsonl"):
@@ -227,4 +226,12 @@ class Benchmarker:
                 f"{self.initialization_timestamp.strftime('%Y-%m-%d_%H-%M-%S')}"
                 f".jsonl"
             )
+        return file_path
+
+    def _append_benchmarks_to_jsonl_if_configured(
+        self, benchmarks: list[BenchmarkForBot]
+    ) -> None:
+        file_path = self.benchmark_file_path
+        if file_path is None:
+            return
         BenchmarkForBot.add_objects_to_jsonl_file(benchmarks, file_path)

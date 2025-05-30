@@ -15,18 +15,20 @@ logger = logging.getLogger(__name__)
 async def run_higher_model_evaluation() -> None:
     # --- Evaluation Parameters ---
     evaluation_questions = QuestionResearchSnapshot.load_json_from_file_path(
-        "logs/forecasts/question_snapshots_v1.5_222qs__>30f__<1.5yr_open.json"
+        "logs/forecasts/question_snapshots_v1.6.test__230qs.json"
     )
 
-    questions_batch_size = 111
+    questions_batch_size = 115
     forecast_llm = GeneralLlm(
         model="openrouter/openai/gpt-4.1-nano",
         temperature=0.3,
     )
     benchmark_files = [
-        "logs/forecasts/benchmarks/benchmarks_prompt_optimization_v1.2__nano_157qs.json",
-        "logs/forecasts/benchmarks/benchmarks_prompt_optimization_v1.3__nano_157qs.json",
-        "logs/forecasts/benchmarks/benchmarks_prompt_optimization_v1.4__nano_157qs.json",
+        "logs/forecasts/benchmarks/benchmarks_prompt_optimization_v2.1__nano_112qs.json",
+        "logs/forecasts/benchmarks/benchmarks_prompt_optimization_v2.2__nano_112qs.json",
+        "logs/forecasts/benchmarks/benchmarks_prompt_optimization_v2.3__nano_112qs.json",
+        "logs/forecasts/benchmarks/benchmarks_prompt_optimization_v2.4__nano_112qs.json",
+        "logs/forecasts/benchmarks/benchmarks_prompt_optimization_v2.5__nano_112qs.json",
     ]
     top_n_prompts = 3
     include_worse_benchmark = True

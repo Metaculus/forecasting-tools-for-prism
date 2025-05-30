@@ -235,9 +235,10 @@ class ChatPage(AppPage):
     @classmethod
     def display_chat_metadata(cls) -> None:
         with st.sidebar.expander("Chat Metadata"):
+            debug_mode = st.session_state.get("debug_mode", False)
             if "last_chat_cost" not in st.session_state.keys():
                 st.session_state.last_chat_cost = 0
-            if st.session_state.last_chat_cost > 0:
+            if st.session_state.last_chat_cost > 0 and debug_mode:
                 st.markdown(
                     f"**Last Chat Cost:** ${st.session_state.last_chat_cost:.7f}"
                 )

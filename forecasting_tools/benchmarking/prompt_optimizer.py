@@ -43,7 +43,7 @@ class PromptOptimizer:
         self.initial_prompt = initial_prompt or ControlGroupPrompt.get_prompt()
         self.iterations = iterations
         self.initial_prompt_population_size = initial_prompt_population_size
-        self.survivor_per_iteration = survivors_per_iteration
+        self.survivors_per_iteration = survivors_per_iteration
         self.mutated_prompts_per_survivor = mutated_prompts_per_survivor
         self.breeded_prompts_per_iteration = breeded_prompts_per_iteration
 
@@ -96,7 +96,7 @@ class PromptOptimizer:
                 reverse=True,
             )
             current_survivors = updated_population[
-                : self.survivor_per_iteration
+                : self.survivors_per_iteration
             ]
             logger.debug(f"Current survivors: {current_survivors}")
             best_survivor = current_survivors[0]
@@ -111,9 +111,9 @@ class PromptOptimizer:
                 )
                 for ep in current_survivors
             ]
-            results = await asyncio.gather(*mutation_tasks)
-            for r_list in results:
-                mutated_configs.extend(r_list)
+            mutation_results = await asyncio.gather(*mutation_tasks)
+            for mutation_list in mutation_results:
+                mutated_configs.extend(mutation_list)
             logger.info(f"Generated {len(mutated_configs)} mutated prompts.")
 
             bred_configs: list[PromptConfig] = []
@@ -173,7 +173,7 @@ class PromptOptimizer:
 
                 # Instructions
                 1. Please analyze the worst {num_worst_reports} scores from the previous prompt and identify what went wrong.
-                2. Run up to 3-5 searches on the web to find inspiration for novel forecasting techniques or prompt structures.
+                2. Run 3-5 searches on the web to find inspiration for novel forecasting techniques or prompt structures.
                 3. Generate {num_mutations_to_generate} new, distinct prompt IDEAS based on the original.
 
                 Please generate exactly {num_mutations_to_generate} new, distinct prompt IDEAS based on the original.

@@ -30,6 +30,8 @@ async def run_higher_model_evaluation() -> None:
     ]
     top_n_prompts = 3
     include_worse_benchmark = True
+    research_reports_per_question = 1
+    num_predictions_per_research_report = 1
 
     # --- Run the evaluation ---
     evaluator = PromptEvaluator(
@@ -44,6 +46,8 @@ async def run_higher_model_evaluation() -> None:
         top_n_prompts=top_n_prompts,
         include_control_group_prompt=True,
         include_worst_prompt=include_worse_benchmark,
+        research_reports_per_question=research_reports_per_question,
+        num_predictions_per_research_report=num_predictions_per_research_report,
     )
     for evaluated_prompt in evaluation_result.evaluated_prompts:
         logger.info(

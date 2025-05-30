@@ -63,7 +63,7 @@ class PromptEvaluator:
             evaluated_prompts.append(
                 EvaluatedPrompt(prompt_config=config, benchmark=benchmark)
             )
-        benchmarker.save_benchmarks_to_file_if_configured(benchmarks)
+        benchmarker.append_benchmarks_to_jsonl_if_configured(benchmarks)
         return OptimizationResult(evaluated_prompts=evaluated_prompts)
 
     def _configs_to_bots(
@@ -112,6 +112,8 @@ class PromptEvaluator:
         top_n_prompts: int = 1,
         include_control_group_prompt: bool = True,
         include_worst_prompt: bool = False,
+        research_reports_per_question: int = 1,
+        num_predictions_per_research_report: int = 1,
     ) -> OptimizationResult:
         best_benchmarks = self._get_best_benchmark_prompt(
             benchmark_files, top_n_prompts, include_worst_prompt
@@ -129,6 +131,8 @@ class PromptEvaluator:
                     short_name=f"Control Group v{ControlGroupPrompt.version()}",
                     idea="The control group is a group of questions that are not optimized for the prompt. It is used to evaluate the performance of the optimized prompt.",
                 ),
+                predictions_per_research_report=num_predictions_per_research_report,
+                research_reports_per_question=research_reports_per_question,
             )
             configs.append(control_group_config)
         for benchmark in best_benchmarks:

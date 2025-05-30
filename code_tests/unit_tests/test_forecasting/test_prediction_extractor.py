@@ -738,6 +738,13 @@ def test_numeric_parsing_failure(gpt_response: str) -> None:
         (
             """
             Text before
+            Probability: 30 %
+            """,
+            0.3,
+        ),
+        (
+            """
+            Text before
             Probability: 100%
             """,
             0.95,

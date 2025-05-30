@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 async def run_optimizer() -> None:
     # -------- Configure the optimizer -----
     evaluation_questions = QuestionResearchSnapshot.load_json_from_file_path(
-        "logs/forecasts/question_snapshots_v1.6._342qs__>15f__<1.5yr_open.json"
+        "logs/forecasts/question_snapshots_v1.6.train__112qs.json"
     )
     forecast_llm = GeneralLlm(
         model="openrouter/openai/gpt-4.1-nano",
@@ -25,9 +25,9 @@ async def run_optimizer() -> None:
     ideation_llm = "openrouter/google/gemini-2.5-pro-preview"
     # ideation_llm = "openrouter/anthropic/claude-sonnet-4"
     remove_background_info = True
-    num_prompts_to_try = 25
+    num_iterations = 4
     full_runs = 5
-    questions_batch_size = 80
+    questions_batch_size = 112
 
     # ----- Run the optimizer -----
     if remove_background_info:
@@ -43,7 +43,7 @@ async def run_optimizer() -> None:
             file_or_folder_to_save_benchmarks="logs/forecasts/benchmarks/",
         )
         optimizer = PromptOptimizer(
-            num_prompts_to_try=num_prompts_to_try,
+            iterations=num_iterations,
             forecast_llm=forecast_llm,
             ideation_llm_name=ideation_llm,
             evaluator=evaluator,

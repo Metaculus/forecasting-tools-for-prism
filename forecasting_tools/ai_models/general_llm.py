@@ -451,7 +451,7 @@ class GeneralLlm(
         model_cost_data = model_cost.get(self._litellm_model)
         if model_cost_data is None:
             raise ValueError(
-                f"Model {self._litellm_model} is not supported by model_cost"
+                f"Model {self._litellm_model} is not supported by litellm's model_cost dictionary"
             )
 
         input_cost_per_1k = (

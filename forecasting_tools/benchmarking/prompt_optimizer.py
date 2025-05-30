@@ -37,7 +37,7 @@ class PromptOptimizer:
         initial_prompt: str | None = None,
         initial_prompt_population_size: int = 25,
         survivors_per_iteration: int = 5,
-        mutated_prompts_per_survivor: int = 5,
+        mutated_prompts_per_survivor: int = 4,
         breeded_prompts_per_iteration: int = 5,
     ) -> None:
         self.initial_prompt = initial_prompt or ControlGroupPrompt.get_prompt()
@@ -145,7 +145,7 @@ class PromptOptimizer:
             worst_reports = []
 
         if worst_reports:
-            report_str = f"Below are the worst {num_worst_reports} scores from the previous prompt. These are baseline scores (100pts is perfect forecast, -800pts is worst possible forecast, and 0pt is forecasting 50%):\n"
+            report_str = f"Below are the worst {num_worst_reports} scores from the previous prompt. These are baseline scores (100pts is perfect forecast, -897pts is worst possible forecast, and 0pt is forecasting 50%):\n"
             report_str += "<><><><><><><><><><><><><><> START OF REPORTS <><><><><><><><><><><><><><>\n"
             for report in worst_reports:
                 report_str += clean_indents(
@@ -221,11 +221,6 @@ class PromptOptimizer:
         logger.info(
             f"Successfully structured {len(mutated_ideas)} mutation ideas for prompt '{parent_prompt_config.original_idea.short_name}'. Requested {num_mutations_to_generate}."
         )
-        if len(mutated_ideas) != num_mutations_to_generate:
-            logger.warning(
-                f"Requested {num_mutations_to_generate} mutation ideas, but got {len(mutated_ideas)}. Returning {mutated_ideas[:num_mutations_to_generate]}"
-            )
-            mutated_ideas = mutated_ideas[:num_mutations_to_generate]
 
         new_prompt_configs = await asyncio.gather(
             *[
@@ -233,6 +228,12 @@ class PromptOptimizer:
                 for idea in mutated_ideas
             ]
         )
+        if len(mutated_ideas) != num_mutations_to_generate:
+            logger.warning(
+                f"Requested {num_mutations_to_generate} mutation ideas, but got {len(mutated_ideas)}. Returning {mutated_ideas[:num_mutations_to_generate]}"
+            )
+            mutated_ideas = mutated_ideas[:num_mutations_to_generate]
+
         logger.info(
             f"Successfully created {len(new_prompt_configs)} PromptConfig objects from mutation ideas."
         )
@@ -365,22 +366,22 @@ class PromptOptimizer:
         missing_vars = [
             var
             for var in [
-                "{{question_text}}",
-                "{{background_info}}",
-                "{{resolution_criteria}}",
-                "{{fine_print}}",
-                "{{today}}",
-                "{{research}}",
+                "{question_text}",
+                "{background_info}",
+                "{resolution_criteria}",
+                "{fine_print}",
+                "{today}",
+                "{research}",
             ]
             if var not in prompt
         ]
         if missing_vars:
             logger.warning(
-                f"Generated prompt for '{prompt_idea.short_name}' is missing template variables: {missing_vars}. Prompt (first 300 chars): {prompt[:300]}..."
+                f"Generated prompt for '{prompt_idea.short_name}' is missing template variables: {missing_vars}. Prompt: {prompt}"
             )
 
         logger.info(
-            f"Generated prompt string for idea '{prompt_idea.short_name}' (first 300 chars): {prompt[:300]}..."
+            f"Generated prompt string for idea '{prompt_idea.short_name}': {prompt}"
         )
         return prompt
 

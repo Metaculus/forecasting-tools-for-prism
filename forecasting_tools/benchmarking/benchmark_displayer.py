@@ -27,10 +27,8 @@ def get_json_files(directory: str) -> list[str]:
     for root, _, files in os.walk(directory):
         for file in files:
             if (
-                file.endswith(".json")
-                or file.endswith(".jsonl")
-                and "bench" in file.lower()
-            ):
+                file.endswith(".json") or file.endswith(".jsonl")
+            ) and "bench" in file.lower():
                 full_path = os.path.join(root, file)
                 json_files.append(full_path)
     return sorted(json_files)

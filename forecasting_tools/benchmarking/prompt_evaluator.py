@@ -60,7 +60,7 @@ class PromptEvaluator:
             benchmark.forecast_bot_class_name = (
                 config.original_idea.short_name.replace(" ", "_")
             )
-            if len(benchmark.forecast_reports) > 1:
+            if len(benchmark.forecast_reports) > 0:
                 evaluated_prompts.append(
                     EvaluatedPrompt(prompt_config=config, benchmark=benchmark)
                 )

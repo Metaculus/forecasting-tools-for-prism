@@ -106,6 +106,7 @@ class ChatPage(AppPage):
     @classmethod
     def display_messages(cls, messages: list[dict]) -> None:
         assistant_message_num = 0
+        st.sidebar.write("**Tool Calls and Outputs:**")
         for message in messages:
             output_emoji = "🔍"
             call_emoji = "📞"
@@ -185,6 +186,15 @@ class ChatPage(AppPage):
 
         active_tools: list[Tool] = []
         with st.sidebar.expander("Select Tools"):
+            bot_choice = st.selectbox(
+                "Select a bot for forecast_question_tool (Main Bot is best)",
+                [bot.__name__ for bot in bot_options],
+            )
+            bot = next(
+                bot for bot in bot_options if bot.__name__ == bot_choice
+            )
+            default_tools.append(create_tool_for_forecasting_bot(bot))
+
             tool_names = [tool.name for tool in default_tools]
             all_checked = all(
                 st.session_state.get(f"tool_{name}", True)
@@ -203,15 +213,6 @@ class ChatPage(AppPage):
 
                 if tool_active:
                     active_tools.append(tool)
-
-            bot_choice = st.selectbox(
-                "Select a bot for forecast_question_tool (Main Bot is best)",
-                [bot.__name__ for bot in bot_options],
-            )
-            bot = next(
-                bot for bot in bot_options if bot.__name__ == bot_choice
-            )
-            default_tools.append(create_tool_for_forecasting_bot(bot))
 
         with st.sidebar.expander("Tool Explanations"):
             for tool in active_tools:
@@ -258,7 +259,7 @@ class ChatPage(AppPage):
             if "trace_id" in st.session_state.keys():
                 trace_id = st.session_state.trace_id
                 st.markdown(
-                    f"**Last Conversation ID:** [{trace_id}](https://platform.openai.com/traces/trace?trace_id={trace_id})"
+                    f"**Conversation in Foresight Project:** [link](https://platform.openai.com/traces/trace?trace_id={trace_id})"
                 )
 
     @classmethod
@@ -275,8 +276,8 @@ class ChatPage(AppPage):
                 """
                 Welcome to the [forecasting-tools](https://github.com/Metaculus/forecasting-tools) chatbot!
                 This is a chatbot to help with forecasting tasks that has access to a number of custom tools useful for forecasting!
-                1. Explore examples of what each tool does below
-                2. Choose which tools you want to use in the sidebar
+                1. Explore examples of some of the tools being used via the buttons below
+                2. Choose which tools you want to use in the sidebar (or leave all of them active and let the AI decide)
                 3. Ask a question! Click 'Clear Chat History' to start a new conversation.
                 """
             )

@@ -69,3 +69,4 @@ def test_saving_and_loading_question() -> None:
     assert question.question_text == loaded_question.question_text
     assert question.id_of_question == loaded_question.id_of_question
     assert question.page_url == loaded_question.page_url
+    os.remove("test_question.json")

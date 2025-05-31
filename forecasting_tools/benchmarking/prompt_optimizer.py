@@ -377,7 +377,7 @@ class PromptOptimizer:
                 {{today}} - The current date in the format YYYY-MM-DD
                 {{research}} - 4-20 paragraphs of research
 
-                Make sure not to include the above variables in the prompt (e.g. in braces), and don't add any additional variables.
+                Make sure to include the above variables in the prompt (e.g. in braces), and don't add any additional variables.
                 Return the prompt and nothing but the prompt. The prompt will be run as is.
                 Ensure the prompt is complete, well-structured, and ready to use based on the idea provided.
                 Do not add any explanatory text before or after the prompt itself.

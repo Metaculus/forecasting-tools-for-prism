@@ -60,9 +60,14 @@ class PromptEvaluator:
             benchmark.forecast_bot_class_name = (
                 config.original_idea.short_name.replace(" ", "_")
             )
-            evaluated_prompts.append(
-                EvaluatedPrompt(prompt_config=config, benchmark=benchmark)
-            )
+            if len(benchmark.forecast_reports) > 1:
+                evaluated_prompts.append(
+                    EvaluatedPrompt(prompt_config=config, benchmark=benchmark)
+                )
+            else:
+                logger.error(
+                    f"Not including {config.original_idea.short_name} in evaluation report because it has no forecast reports"
+                )
         return OptimizationResult(evaluated_prompts=evaluated_prompts)
 
     def _configs_to_bots(

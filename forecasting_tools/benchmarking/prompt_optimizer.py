@@ -111,13 +111,24 @@ class PromptOptimizer:
                 )
                 for ep in current_survivors
             ]
-            mutation_results = await asyncio.gather(*mutation_tasks)
+            initial_mutation_results = await asyncio.gather(
+                *mutation_tasks, return_exceptions=True
+            )
+            mutation_results: list[list[PromptConfig]] = [
+                result
+                for result in initial_mutation_results
+                if not isinstance(result, BaseException)
+            ]
             for mutation_list in mutation_results:
                 mutated_configs.extend(mutation_list)
             logger.info(f"Generated {len(mutated_configs)} mutated prompts.")
 
             bred_configs: list[PromptConfig] = []
-            bred_configs = await self._breed_prompts(current_survivors)
+            try:
+                bred_configs = await self._breed_prompts(current_survivors)
+            except Exception as e:
+                logger.error(f"Failed to breed prompts: {e}")
+                bred_configs = []
             logger.info(f"Generated {len(bred_configs)} bred prompts.")
 
             new_prompt_configs = mutated_configs + bred_configs
@@ -225,12 +236,18 @@ class PromptOptimizer:
             f"Successfully structured {len(mutated_ideas)} mutation ideas for prompt '{parent_prompt_config.original_idea.short_name}'. Requested {num_mutations_to_generate}."
         )
 
-        new_prompt_configs = await asyncio.gather(
+        initial_new_prompt_configs = await asyncio.gather(
             *[
                 self._prompt_idea_to_prompt_config(idea)
                 for idea in mutated_ideas
-            ]
+            ],
+            return_exceptions=True,
         )
+        new_prompt_configs: list[PromptConfig] = [
+            result
+            for result in initial_new_prompt_configs
+            if not isinstance(result, BaseException)
+        ]
         if len(mutated_ideas) != num_mutations_to_generate:
             logger.warning(
                 f"Requested {num_mutations_to_generate} mutation ideas, but got {len(mutated_ideas)}. Returning {mutated_ideas[:num_mutations_to_generate]}"
@@ -323,9 +340,15 @@ class PromptOptimizer:
                 f"Requested {num_to_breed} bred ideas, but got {len(bred_ideas)}. Returning {bred_ideas[:num_to_breed]}"
             )
             bred_ideas = bred_ideas[:num_to_breed]
-        new_prompt_configs = await asyncio.gather(
-            *[self._prompt_idea_to_prompt_config(idea) for idea in bred_ideas]
+        initial_new_prompt_configs = await asyncio.gather(
+            *[self._prompt_idea_to_prompt_config(idea) for idea in bred_ideas],
+            return_exceptions=True,
         )
+        new_prompt_configs: list[PromptConfig] = [
+            result
+            for result in initial_new_prompt_configs
+            if not isinstance(result, BaseException)
+        ]
         logger.info(
             f"Successfully created {len(new_prompt_configs)} PromptConfig objects from bred ideas."
         )
@@ -354,6 +377,7 @@ class PromptOptimizer:
                 {{today}} - The current date in the format YYYY-MM-DD
                 {{research}} - 4-20 paragraphs of research
 
+                Make sure not to include the above variables in the prompt (e.g. in braces), and don't add any additional variables.
                 Return the prompt and nothing but the prompt. The prompt will be run as is.
                 Ensure the prompt is complete, well-structured, and ready to use based on the idea provided.
                 Do not add any explanatory text before or after the prompt itself.
@@ -382,6 +406,19 @@ class PromptOptimizer:
             logger.warning(
                 f"Generated prompt for '{prompt_idea.short_name}' is missing template variables: {missing_vars}. Prompt: {prompt}"
             )
+
+        try:
+            prompt.format(
+                question_text="test",
+                background_info="test",
+                resolution_criteria="test",
+                fine_print="test",
+                today="test",
+                research="test",
+            )
+        except Exception as e:
+            logger.error(f"Failed to fill in prompt: {e}")
+            raise ValueError(f"Failed to fill-in-prompt test: {e}")
 
         logger.info(
             f"Generated prompt string for idea '{prompt_idea.short_name}': {prompt}"

@@ -339,7 +339,7 @@ def test_multiple_choice_extraction_success(
             """
             Option Blue: 0.3
             Option Green: 0.2
-            Option Yellow: 0.49
+            Option Yellow: 0.47
             """,
             ["Blue", "Green", "Yellow"],
         ),
@@ -355,7 +355,7 @@ def test_multiple_choice_extraction_success(
             """
             Option Blue: 0.3
             Option Green: 0.2
-            Option Yellow: 0.51
+            Option Yellow: 0.53
             """,
             ["Blue", "Green", "Yellow"],
         ),

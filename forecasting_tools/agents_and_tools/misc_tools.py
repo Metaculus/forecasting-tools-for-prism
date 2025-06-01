@@ -113,6 +113,7 @@ def create_tool_for_forecasting_bot(
 
     @agent_tool(description_override=description)
     def forecast_question_tool(question: SimpleQuestion) -> str:
+
         metaculus_question = (
             SimpleQuestion.simple_questions_to_metaculus_questions([question])[
                 0

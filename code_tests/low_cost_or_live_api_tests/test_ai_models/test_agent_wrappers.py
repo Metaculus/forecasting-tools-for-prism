@@ -1,5 +1,6 @@
 import logging
 
+import pytest
 from openai.types.responses import ResponseTextDeltaEvent
 
 from forecasting_tools.ai_models.agent_wrappers import (
@@ -14,27 +15,30 @@ from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import 
 logger = logging.getLogger(__name__)
 
 
-async def test_agent_sdk_llm_works() -> None:
+@pytest.mark.parametrize(
+    "model", ["openrouter/openai/gpt-3.5-turbo", "gpt-4.1"]
+)
+async def test_agent_sdk_llm_works(model: str) -> None:
     agent = AiAgent(
         name="Assistant",
         instructions="You only respond in haikus.",
-        model=AgentSdkLlm(model="openrouter/openai/gpt-3.5-turbo"),
+        model=AgentSdkLlm(model=model),
     )
     prompt = "Hello, world!"
     with MonetaryCostManager(1) as cost_manager:
         response = await AgentRunner.run(agent, prompt)
         assert response is not None, "Response is None"
-        assert hasattr(
-            cost_manager, "current_usage"
-        ), "Cost manager missing current_usage"
         assert cost_manager.current_usage > 0, "No cost was incurred"
 
 
-async def test_streamted_agent_sdk_llm_works() -> None:
+@pytest.mark.parametrize(
+    "model", ["openrouter/openai/gpt-3.5-turbo", "gpt-4.1"]
+)
+async def test_streamed_agent_sdk_llm_works(model: str) -> None:
     agent = AiAgent(
         name="Assistant",
         instructions="You only respond in haikus.",
-        model=AgentSdkLlm(model="openrouter/openai/gpt-3.5-turbo"),
+        model=AgentSdkLlm(model=model),
     )
     prompt = "Hello, world!"
     with MonetaryCostManager(1) as cost_manager:

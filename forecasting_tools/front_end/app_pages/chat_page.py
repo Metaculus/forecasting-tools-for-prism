@@ -47,7 +47,9 @@ from forecasting_tools.util.jsonable import Jsonable
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_MODEL: str = "openrouter/google/gemini-2.5-pro-preview"
+DEFAULT_MODEL: str = (
+    "openrouter/anthropic/claude-sonnet-4"  # "openrouter/google/gemini-2.5-pro-preview"
+)
 
 
 class ChatSession(BaseModel, Jsonable):
@@ -95,9 +97,7 @@ class ChatPage(AppPage):
         if st.session_state.messages[-1]["role"] != "assistant":
             with MonetaryCostManager(10) as cost_manager:
                 start_time = time.time()
-                await cls.generate_response(
-                    prompt, active_tools, st.session_state["model_choice"]
-                )
+                await cls.generate_response(prompt, active_tools)
                 st.session_state.last_chat_cost = cost_manager.current_usage
                 end_time = time.time()
                 st.session_state.last_chat_duration = end_time - start_time
@@ -111,22 +111,34 @@ class ChatPage(AppPage):
             output_emoji = "🔍"
             call_emoji = "📞"
             if "type" in message and message["type"] == "function_call":
-                call_id = message["call_id"]
-                with st.sidebar.expander(
-                    f"{call_emoji}M{assistant_message_num} Call: {call_id}"
-                ):
+                call_id = message["name"]
+                with st.sidebar.expander(f"{call_emoji} Call: {call_id}"):
                     st.write(f"Function: {message['name']}")
                     st.write(f"Arguments: {message['arguments']}")
+                    st.write(f"Call ID: {message['call_id']}")
+                    st.write(
+                        f"Assistant Message Number: {assistant_message_num}"
+                    )
                     continue
             if "type" in message and message["type"] == "function_call_output":
                 call_id = message["call_id"]
-                with st.sidebar.expander(
-                    f"{output_emoji}M{assistant_message_num} Output: {call_id}"
-                ):
-                    st.write(message["output"])
+                with st.sidebar.expander(f"{output_emoji} Output: {call_id}"):
+                    st.write(f"Call ID: {message['call_id']}")
+                    st.write(
+                        f"Assistant Message Number: {assistant_message_num}"
+                    )
+                    st.write(f"Output:\n\n{message['output']}")
                     continue
 
-            role = message["role"]
+            try:
+                role = message["role"]
+            except KeyError:
+                if "type" in message and message["type"] == "reasoning":
+                    logger.warning(f"Found message with no role: {message}")
+                else:
+                    st.error(f"Unexpected message role. Message: {message}")
+                continue
+
             with st.chat_message(role):
                 if role == "assistant":
                     assistant_message_num += 1
@@ -163,6 +175,9 @@ class ChatPage(AppPage):
             )
         st.session_state["model_choice"] = model_choice
 
+        # # TODO: When future versions of openai-agents come out, check if AgentSdkLlm works
+        # st.session_state["model_choice"] = DEFAULT_MODEL
+
     @classmethod
     def get_chat_tools(cls) -> list[Tool]:
         return [
@@ -193,7 +208,9 @@ class ChatPage(AppPage):
             bot = next(
                 bot for bot in bot_options if bot.__name__ == bot_choice
             )
-            default_tools.append(create_tool_for_forecasting_bot(bot))
+            default_tools = [
+                create_tool_for_forecasting_bot(bot)
+            ] + default_tools
 
             tool_names = [tool.name for tool in default_tools]
             all_checked = all(
@@ -276,9 +293,9 @@ class ChatPage(AppPage):
                 """
                 Welcome to the [forecasting-tools](https://github.com/Metaculus/forecasting-tools) chatbot!
                 This is a chatbot to help with forecasting tasks that has access to a number of custom tools useful for forecasting!
-                1. Explore examples of some of the tools being used via the buttons below
-                2. Choose which tools you want to use in the sidebar (or leave all of them active and let the AI decide)
-                3. Ask a question! Click 'Clear Chat History' to start a new conversation.
+                1. **See examples**: Explore examples of some of the tools being used via the buttons below
+                2. **Choose tools**: Choose which tools you want to use in the sidebar (or leave all of them active and let the AI decide)
+                3. **Ask a question**: Click 'Clear Chat History' to start a new conversation and ask a question! See the full detailed output of tools populate in the sidebar.
                 """
             )
             if saved_sessions:
@@ -334,7 +351,6 @@ class ChatPage(AppPage):
         cls,
         prompt_input: str | None,
         active_tools: list[Tool],
-        model_choice: str,
     ) -> None:
         if not prompt_input:
             return
@@ -345,10 +361,14 @@ class ChatPage(AppPage):
             - When a tool gives you answers that are cited, ALWAYS include the links in your responses. Keep the links inline as much as you can.
             - If you can, you infer the inputs to tools rather than ask for them.
             - If a tool call fails, you say so rather than giving a back up answer.
-            - Whenever possible, please paralelize your tool calls and split tasks into parallel subtasks. However, don't do this if tasks are dependent on each other (e.g. you need metaculus question information to run a forecast)
+            - Whenever possible, please paralelize your tool calls and split tasks into parallel subtasks. However, don't do this if tasks are dependent on each other (e.g. you need metaculus question information BEFORE running a forecast)
             - By default, restate ALL the output that tools give you in readable markdown to the user. Do this even if the tool output is long.
+            - Format your response as Markdown parsable in streamlit.write() function
+            - If the forecast_question_tool is available, always use this when forecasting unless someone asks you not to.
             """
         )
+
+        model_choice = st.session_state["model_choice"]
 
         agent = Agent(
             name="Assistant",
@@ -382,10 +402,13 @@ class ChatPage(AppPage):
                     if new_reasoning:
                         st.sidebar.write(new_reasoning)
 
-        logger.info(f"Chat finished with output: {streamed_text}")
+        # logger.info(f"Chat finished with output: {streamed_text}")
         st.session_state.messages = result.to_input_list()
         st.session_state.trace_id = chat_trace.trace_id
+        cls._update_last_message_if_gemini_bug(model_choice)
 
+    @classmethod
+    def _update_last_message_if_gemini_bug(cls, model_choice: str) -> None:
         last_3_messages = st.session_state.messages[-3:]
         for message in last_3_messages:
             if (
@@ -398,7 +421,7 @@ class ChatPage(AppPage):
                 output = message["output"]
                 last_message["content"][0][
                     "text"
-                ] += f"\n\n---\n\nNOTICE: There is a bug in gemini tool calling in OpenAI agents SDK, here is the content. Consider using o4-mini:\n\n {output}."
+                ] += f"\n\n---\n\nNOTICE: There is a bug in gemini tool calling in OpenAI agents SDK, here is the content. Consider using openrouter/anthropic/claude-sonnet-4:\n\n {output}."
 
     @classmethod
     def _grab_text_of_item(cls, item: RunItem) -> str:

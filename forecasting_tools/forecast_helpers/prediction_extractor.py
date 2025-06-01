@@ -34,7 +34,7 @@ class PredictionExtractor:
         assert (
             max_prediction >= min_prediction
         ), f"Max prediction {max_prediction} is not greater than or equal to min prediction {min_prediction}"
-        matches = re.findall(r"(\d+)%", text)
+        matches = re.findall(r"(\d+)\s*%", text)
         if matches:
             # Return the last number found before a '%'
             original_number = int(matches[-1]) / 100
@@ -184,7 +184,7 @@ class PredictionExtractor:
             decimal_list = [x / 100 for x in option_probabilities]
 
         sum_of_probabilities = sum(decimal_list)
-        if sum_of_probabilities > 1.11 or sum_of_probabilities < 0.89:
+        if sum_of_probabilities > 1.02 or sum_of_probabilities < 0.99:
             raise ValueError(
                 f"Sum of option probabilities {sum_of_probabilities} is "
                 "too far from 1 to be confident that normalization will deliver an "

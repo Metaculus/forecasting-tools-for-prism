@@ -33,9 +33,13 @@ async def test_prompt_optimizer() -> None:
     )
     prompt_optimizer = PromptOptimizer(
         evaluator=evaluator,
-        num_prompts_to_try=1,
+        iterations=2,
         forecast_llm=GeneralLlm(model="gpt-4.1-nano"),
         ideation_llm_name="gpt-4.1-nano",
+        initial_prompt_population_size=3,
+        survivors_per_iteration=3,
+        mutated_prompts_per_survivor=2,
+        breeded_prompts_per_iteration=2,
     )
     with MonetaryCostManager(1):
         optimized_result = await prompt_optimizer.create_optimized_prompt()

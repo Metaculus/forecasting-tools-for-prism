@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 import time
@@ -15,6 +17,9 @@ from forecasting_tools.agents_and_tools.misc_tools import (
     perplexity_pro_search,
     perplexity_quick_search,
     smart_searcher_search,
+)
+from forecasting_tools.agents_and_tools.question_generators.info_hazard_identifier import (
+    InfoHazardIdentifier,
 )
 from forecasting_tools.agents_and_tools.question_generators.question_decomposer import (
     QuestionDecomposer,
@@ -42,9 +47,15 @@ from forecasting_tools.util.jsonable import Jsonable
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_MODEL: str = (
+    "openrouter/anthropic/claude-sonnet-4"  # "openrouter/google/gemini-2.5-pro-preview"
+)
+
+
 class ChatSession(BaseModel, Jsonable):
     name: str
     messages: list[dict]
+    model_choice: str = DEFAULT_MODEL
     trace_id: str | None = None
     last_chat_cost: float | None = None
     last_chat_duration: float | None = None
@@ -65,17 +76,11 @@ class ChatPage(AppPage):
 
         if "messages" not in st.session_state.keys():
             st.session_state.messages = [cls.DEFAULT_MESSAGE]
-
-        if len(st.session_state.messages) <= 1:
-            st.success(
-                "Welcome to the [forecasting-tools](https://github.com/Metaculus/forecasting-tools) chatbot! "
-                "Choose which tools you want to use, "
-                "and check out the premade examples for what the chat can do! "
-                "Click 'Clear Chat History' to start a new conversation. "
-            )
-
-        cls.display_top_sidebar_items()
-        model_choice = cls.display_model_selector()
+        cls.display_debug_mode()
+        st.sidebar.button(
+            "Clear Chat History", on_click=cls.clear_chat_history
+        )
+        cls.display_model_selector()
         active_tools = cls.display_tools()
         cls.display_chat_metadata()
         cls.display_premade_examples()
@@ -92,7 +97,7 @@ class ChatPage(AppPage):
         if st.session_state.messages[-1]["role"] != "assistant":
             with MonetaryCostManager(10) as cost_manager:
                 start_time = time.time()
-                await cls.generate_response(prompt, active_tools, model_choice)
+                await cls.generate_response(prompt, active_tools)
                 st.session_state.last_chat_cost = cost_manager.current_usage
                 end_time = time.time()
                 st.session_state.last_chat_duration = end_time - start_time
@@ -101,26 +106,39 @@ class ChatPage(AppPage):
     @classmethod
     def display_messages(cls, messages: list[dict]) -> None:
         assistant_message_num = 0
+        st.sidebar.write("**Tool Calls and Outputs:**")
         for message in messages:
             output_emoji = "🔍"
             call_emoji = "📞"
             if "type" in message and message["type"] == "function_call":
-                call_id = message["call_id"]
-                with st.sidebar.expander(
-                    f"{call_emoji}M{assistant_message_num} Call: {call_id}"
-                ):
+                call_id = message["name"]
+                with st.sidebar.expander(f"{call_emoji} Call: {call_id}"):
                     st.write(f"Function: {message['name']}")
                     st.write(f"Arguments: {message['arguments']}")
+                    st.write(f"Call ID: {message['call_id']}")
+                    st.write(
+                        f"Assistant Message Number: {assistant_message_num}"
+                    )
                     continue
             if "type" in message and message["type"] == "function_call_output":
                 call_id = message["call_id"]
-                with st.sidebar.expander(
-                    f"{output_emoji}M{assistant_message_num} Output: {call_id}"
-                ):
-                    st.write(message["output"])
+                with st.sidebar.expander(f"{output_emoji} Output: {call_id}"):
+                    st.write(f"Call ID: {message['call_id']}")
+                    st.write(
+                        f"Assistant Message Number: {assistant_message_num}"
+                    )
+                    st.write(f"Output:\n\n{message['output']}")
                     continue
 
-            role = message["role"]
+            try:
+                role = message["role"]
+            except KeyError:
+                if "type" in message and message["type"] == "reasoning":
+                    logger.warning(f"Found message with no role: {message}")
+                else:
+                    st.error(f"Unexpected message role. Message: {message}")
+                continue
+
             with st.chat_message(role):
                 if role == "assistant":
                     assistant_message_num += 1
@@ -132,7 +150,7 @@ class ChatPage(AppPage):
                 st.write(ReportDisplayer.clean_markdown(text))
 
     @classmethod
-    def display_top_sidebar_items(cls) -> None:
+    def display_debug_mode(cls) -> None:
         local_streamlit_mode = (
             os.getenv("LOCAL_STREAMLIT_MODE", "false").lower() == "true"
         )
@@ -141,21 +159,24 @@ class ChatPage(AppPage):
                 st.session_state["debug_mode"] = True
             else:
                 st.session_state["debug_mode"] = False
-        st.sidebar.button(
-            "Clear Chat History", on_click=cls.clear_chat_history
-        )
 
     @classmethod
-    def display_model_selector(cls) -> str:
+    def display_model_selector(cls) -> None:
+        if "model_choice" not in st.session_state.keys():
+            st.session_state["model_choice"] = DEFAULT_MODEL
+        model_name: str = st.session_state["model_choice"]
         model_choice = st.sidebar.text_input(
-            "Select model for chat (not tools)",
-            value="openrouter/google/gemini-2.5-pro-preview",  # "gemini/gemini-2.5-pro-preview-03-25"
+            "Litellm compatible model used for chat (not tools)",
+            value=model_name,
         )
         if "o1-pro" in model_choice or "gpt-4.5" in model_choice:
             raise ValueError(
                 "o1 pro and gpt-4.5 are not available for this application."
             )
-        return model_choice
+        st.session_state["model_choice"] = model_choice
+
+        # # TODO: When future versions of openai-agents come out, check if AgentSdkLlm works
+        # st.session_state["model_choice"] = DEFAULT_MODEL
 
     @classmethod
     def get_chat_tools(cls) -> list[Tool]:
@@ -170,21 +191,27 @@ class ChatPage(AppPage):
             grab_open_questions_from_tournament,
             TopicGenerator.get_headlines_on_random_company_tool,
             perplexity_quick_search,
+            InfoHazardIdentifier.info_hazard_identifier_tool,
         ]
 
     @classmethod
     def display_tools(cls) -> list[Tool]:
         default_tools: list[Tool] = cls.get_chat_tools()
         bot_options = get_all_important_bot_classes()
-        bot_choice = st.sidebar.selectbox(
-            "Select a bot for forecast_question_tool (Main Bot is best)",
-            [bot.__name__ for bot in bot_options],
-        )
-        bot = next(bot for bot in bot_options if bot.__name__ == bot_choice)
-        default_tools.append(create_tool_for_forecasting_bot(bot))
 
         active_tools: list[Tool] = []
         with st.sidebar.expander("Select Tools"):
+            bot_choice = st.selectbox(
+                "Select a bot for forecast_question_tool (Main Bot is best)",
+                [bot.__name__ for bot in bot_options],
+            )
+            bot = next(
+                bot for bot in bot_options if bot.__name__ == bot_choice
+            )
+            default_tools = [
+                create_tool_for_forecasting_bot(bot)
+            ] + default_tools
+
             tool_names = [tool.name for tool in default_tools]
             all_checked = all(
                 st.session_state.get(f"tool_{name}", True)
@@ -235,9 +262,10 @@ class ChatPage(AppPage):
     @classmethod
     def display_chat_metadata(cls) -> None:
         with st.sidebar.expander("Chat Metadata"):
+            debug_mode = st.session_state.get("debug_mode", False)
             if "last_chat_cost" not in st.session_state.keys():
                 st.session_state.last_chat_cost = 0
-            if st.session_state.last_chat_cost > 0:
+            if st.session_state.last_chat_cost > 0 and debug_mode:
                 st.markdown(
                     f"**Last Chat Cost:** ${st.session_state.last_chat_cost:.7f}"
                 )
@@ -248,7 +276,7 @@ class ChatPage(AppPage):
             if "trace_id" in st.session_state.keys():
                 trace_id = st.session_state.trace_id
                 st.markdown(
-                    f"**Last Conversation ID:** [{trace_id}](https://platform.openai.com/traces/trace?trace_id={trace_id})"
+                    f"**Conversation in Foresight Project:** [link](https://platform.openai.com/traces/trace?trace_id={trace_id})"
                 )
 
     @classmethod
@@ -260,11 +288,21 @@ class ChatPage(AppPage):
         except Exception:
             saved_sessions = []
             st.sidebar.warning("No saved chat sessions found")
-        with st.sidebar.expander("Premade Examples"):
+        with st.expander("📚 Getting Started", expanded=True):
+            st.write(
+                """
+                Welcome to the [forecasting-tools](https://github.com/Metaculus/forecasting-tools) chatbot!
+                This is a chatbot to help with forecasting tasks that has access to a number of custom tools useful for forecasting!
+                1. **See examples**: Explore examples of some of the tools being used via the buttons below
+                2. **Choose tools**: Choose which tools you want to use in the sidebar (or leave all of them active and let the AI decide)
+                3. **Ask a question**: Click 'Clear Chat History' to start a new conversation and ask a question! See the full detailed output of tools populate in the sidebar.
+                """
+            )
             if saved_sessions:
                 for session in saved_sessions:
                     if st.button(session.name, key=session.name):
                         st.session_state.messages = session.messages
+                        st.session_state.model_choice = session.model_choice
                         if session.trace_id:
                             st.session_state.trace_id = session.trace_id
                         if session.last_chat_cost:
@@ -293,6 +331,7 @@ class ChatPage(AppPage):
                 if st.button("Save Chat Session"):
                     chat_session = ChatSession(
                         name=st.session_state["chat_save_name"],
+                        model_choice=st.session_state["model_choice"],
                         messages=st.session_state.messages,
                         trace_id=st.session_state.trace_id,
                         last_chat_cost=st.session_state.last_chat_cost,
@@ -312,7 +351,6 @@ class ChatPage(AppPage):
         cls,
         prompt_input: str | None,
         active_tools: list[Tool],
-        model_choice: str,
     ) -> None:
         if not prompt_input:
             return
@@ -323,10 +361,14 @@ class ChatPage(AppPage):
             - When a tool gives you answers that are cited, ALWAYS include the links in your responses. Keep the links inline as much as you can.
             - If you can, you infer the inputs to tools rather than ask for them.
             - If a tool call fails, you say so rather than giving a back up answer.
-            - Whenever possible, please paralelize your tool calls and split tasks into parallel subtasks. However, don't do this if tasks are dependent on each other (e.g. you need metaculus question information to run a forecast)
+            - Whenever possible, please paralelize your tool calls and split tasks into parallel subtasks. However, don't do this if tasks are dependent on each other (e.g. you need metaculus question information BEFORE running a forecast)
             - By default, restate ALL the output that tools give you in readable markdown to the user. Do this even if the tool output is long.
+            - Format your response as Markdown parsable in streamlit.write() function
+            - If the forecast_question_tool is available, always use this when forecasting unless someone asks you not to.
             """
         )
+
+        model_choice = st.session_state["model_choice"]
 
         agent = Agent(
             name="Assistant",
@@ -360,10 +402,13 @@ class ChatPage(AppPage):
                     if new_reasoning:
                         st.sidebar.write(new_reasoning)
 
-        logger.info(f"Chat finished with output: {streamed_text}")
+        # logger.info(f"Chat finished with output: {streamed_text}")
         st.session_state.messages = result.to_input_list()
         st.session_state.trace_id = chat_trace.trace_id
+        cls._update_last_message_if_gemini_bug(model_choice)
 
+    @classmethod
+    def _update_last_message_if_gemini_bug(cls, model_choice: str) -> None:
         last_3_messages = st.session_state.messages[-3:]
         for message in last_3_messages:
             if (
@@ -376,7 +421,7 @@ class ChatPage(AppPage):
                 output = message["output"]
                 last_message["content"][0][
                     "text"
-                ] += f"\n\n---\n\nNOTICE: There is a bug in gemini tool calling in OpenAI agents SDK, here is the content. Consider using o4-mini:\n\n {output}."
+                ] += f"\n\n---\n\nNOTICE: There is a bug in gemini tool calling in OpenAI agents SDK, here is the content. Consider using openrouter/anthropic/claude-sonnet-4:\n\n {output}."
 
     @classmethod
     def _grab_text_of_item(cls, item: RunItem) -> str:

@@ -3,12 +3,15 @@ from __future__ import annotations
 import logging
 import os
 import time
+from datetime import datetime
 
 import streamlit as st
 from agents import Agent, RunItem, Runner, Tool, trace
+from openai import OpenAI
 from openai.types.responses import ResponseTextDeltaEvent
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from forecasting_tools.agents_and_tools.data_analyzer import DataAnalyzer
 from forecasting_tools.agents_and_tools.misc_tools import (
     create_tool_for_forecasting_bot,
     get_general_news_with_asknews,
@@ -59,6 +62,12 @@ class ChatSession(BaseModel, Jsonable):
     trace_id: str | None = None
     last_chat_cost: float | None = None
     last_chat_duration: float | None = None
+    time_stamp: datetime = Field(default_factory=datetime.now)
+
+
+class SessionFile(BaseModel):
+    file_id: str
+    file_name: str
 
 
 class ChatPage(AppPage):
@@ -73,7 +82,6 @@ class ChatPage(AppPage):
 
     @classmethod
     async def _async_main(cls) -> None:
-
         if "messages" not in st.session_state.keys():
             st.session_state.messages = [cls.DEFAULT_MESSAGE]
         cls.display_debug_mode()
@@ -84,70 +92,11 @@ class ChatPage(AppPage):
         active_tools = cls.display_tools()
         cls.display_chat_metadata()
         cls.display_premade_examples()
+        cls.display_chat_files()
         st.sidebar.write("---")
         cls.display_messages(st.session_state.messages)
-
-        if prompt := st.chat_input():
-            st.session_state.messages.append(
-                {"role": "user", "content": prompt}
-            )
-            with st.chat_message("user"):
-                st.write(prompt)
-
-        if st.session_state.messages[-1]["role"] != "assistant":
-            with MonetaryCostManager(10) as cost_manager:
-                start_time = time.time()
-                await cls.generate_response(prompt, active_tools)
-                st.session_state.last_chat_cost = cost_manager.current_usage
-                end_time = time.time()
-                st.session_state.last_chat_duration = end_time - start_time
-            st.rerun()
-
-    @classmethod
-    def display_messages(cls, messages: list[dict]) -> None:
-        assistant_message_num = 0
-        st.sidebar.write("**Tool Calls and Outputs:**")
-        for message in messages:
-            output_emoji = "🔍"
-            call_emoji = "📞"
-            if "type" in message and message["type"] == "function_call":
-                call_id = message["name"]
-                with st.sidebar.expander(f"{call_emoji} Call: {call_id}"):
-                    st.write(f"Function: {message['name']}")
-                    st.write(f"Arguments: {message['arguments']}")
-                    st.write(f"Call ID: {message['call_id']}")
-                    st.write(
-                        f"Assistant Message Number: {assistant_message_num}"
-                    )
-                    continue
-            if "type" in message and message["type"] == "function_call_output":
-                call_id = message["call_id"]
-                with st.sidebar.expander(f"{output_emoji} Output: {call_id}"):
-                    st.write(f"Call ID: {message['call_id']}")
-                    st.write(
-                        f"Assistant Message Number: {assistant_message_num}"
-                    )
-                    st.write(f"Output:\n\n{message['output']}")
-                    continue
-
-            try:
-                role = message["role"]
-            except KeyError:
-                if "type" in message and message["type"] == "reasoning":
-                    logger.warning(f"Found message with no role: {message}")
-                else:
-                    st.error(f"Unexpected message role. Message: {message}")
-                continue
-
-            with st.chat_message(role):
-                if role == "assistant":
-                    assistant_message_num += 1
-                content = message["content"]
-                if isinstance(content, list):
-                    text = content[0]["text"]
-                else:
-                    text = content
-                st.write(ReportDisplayer.clean_markdown(text))
+        prompt = cls.display_chat_bar()
+        await cls.process_prompt(prompt, active_tools)
 
     @classmethod
     def display_debug_mode(cls) -> None:
@@ -175,9 +124,6 @@ class ChatPage(AppPage):
             )
         st.session_state["model_choice"] = model_choice
 
-        # # TODO: When future versions of openai-agents come out, check if AgentSdkLlm works
-        # st.session_state["model_choice"] = DEFAULT_MODEL
-
     @classmethod
     def get_chat_tools(cls) -> list[Tool]:
         return [
@@ -192,6 +138,7 @@ class ChatPage(AppPage):
             TopicGenerator.get_headlines_on_random_company_tool,
             perplexity_quick_search,
             InfoHazardIdentifier.info_hazard_identifier_tool,
+            DataAnalyzer.data_analysis_tool,
         ]
 
     @classmethod
@@ -200,7 +147,7 @@ class ChatPage(AppPage):
         bot_options = get_all_important_bot_classes()
 
         active_tools: list[Tool] = []
-        with st.sidebar.expander("Select Tools"):
+        with st.sidebar.expander("🛠️ Select Tools"):
             bot_choice = st.selectbox(
                 "Select a bot for forecast_question_tool (Main Bot is best)",
                 [bot.__name__ for bot in bot_options],
@@ -231,7 +178,7 @@ class ChatPage(AppPage):
                 if tool_active:
                     active_tools.append(tool)
 
-        with st.sidebar.expander("Tool Explanations"):
+        with st.sidebar.expander("ℹ️ Tool Explanations"):
             for tool in active_tools:
                 if isinstance(tool, AgentTool):
                     property_description = ""
@@ -261,7 +208,7 @@ class ChatPage(AppPage):
 
     @classmethod
     def display_chat_metadata(cls) -> None:
-        with st.sidebar.expander("Chat Metadata"):
+        with st.sidebar.expander("📈 Chat Metadata"):
             debug_mode = st.session_state.get("debug_mode", False)
             if "last_chat_cost" not in st.session_state.keys():
                 st.session_state.last_chat_cost = 0
@@ -313,6 +260,9 @@ class ChatPage(AppPage):
                             st.session_state.last_chat_duration = (
                                 session.last_chat_duration
                             )
+                        logger.info(
+                            f"Chat session '{session.name}' loaded. Rerunning app"
+                        )
                         st.rerun()
                     if debug_mode:
                         if st.button("🗑️", key=f"delete_{session.name}"):
@@ -322,6 +272,9 @@ class ChatPage(AppPage):
                             )
                             st.sidebar.success(
                                 f"Chat session '{session.name}' deleted."
+                            )
+                            logger.info(
+                                f"Chat session '{session.name}' deleted. Rerunning app"
                             )
                             st.rerun()
             if debug_mode:
@@ -344,7 +297,117 @@ class ChatPage(AppPage):
                     st.sidebar.success(
                         f"Chat session '{chat_session.name}' saved."
                     )
+                    logger.info(
+                        f"Chat session '{chat_session.name}' saved. Rerunning app"
+                    )
                     st.rerun()
+
+    @classmethod
+    def display_chat_files(cls) -> None:
+        if "chat_files" not in st.session_state.keys():
+            st.session_state.chat_files = []
+        session_files: list[SessionFile] = st.session_state.chat_files
+        with st.sidebar.expander("📁 Uploaded Files", expanded=True):
+            debug_mode = st.session_state.get("debug_mode", False)
+            for i, file in enumerate(session_files):
+                st.write(f"File {i+1}: `{file.file_name}`")
+                if debug_mode:
+                    st.write(f"File ID: `{file.file_id}`")
+
+    @classmethod
+    def display_messages(cls, messages: list[dict]) -> None:
+        assistant_message_num = 0
+        st.sidebar.write("**Tool Calls and Outputs:**")
+        for message in messages:
+            output_emoji = "📝"
+            call_emoji = "📞"
+            if "type" in message and message["type"] == "function_call":
+                call_id = message["name"]
+                with st.sidebar.expander(f"{call_emoji} Call: {call_id}"):
+                    st.write(f"Call ID: {message['call_id']}")
+                    st.write(
+                        f"Assistant Message Number: {assistant_message_num}"
+                    )
+                    st.write(f"Function: {message['name']}")
+                    st.write(f"Arguments: {message['arguments']}")
+                    continue
+            if "type" in message and message["type"] == "function_call_output":
+                call_id = message["call_id"]
+                with st.sidebar.expander(f"{output_emoji} Output: {call_id}"):
+                    st.write(f"Call ID: {message['call_id']}")
+                    st.write(
+                        f"Assistant Message Number: {assistant_message_num}"
+                    )
+                    st.write(f"Output:\n\n{message['output']}")
+                    continue
+
+            try:
+                role = message["role"]
+            except KeyError:
+                if "type" in message and message["type"] == "reasoning":
+                    logger.warning(f"Found message with no role: {message}")
+                else:
+                    st.error(f"Unexpected message role. Message: {message}")
+                continue
+
+            with st.chat_message(role):
+                if role == "assistant":
+                    assistant_message_num += 1
+                content = message["content"]
+                if isinstance(content, list):
+                    text = content[0]["text"]
+                else:
+                    text = content
+                st.write(ReportDisplayer.clean_markdown(text))
+
+    @classmethod
+    def display_chat_bar(cls) -> str | None:
+        if chat_input := st.chat_input(accept_file=True):
+            prompt = chat_input.text
+
+            input_files = chat_input.files
+            if "chat_files" not in st.session_state.keys():
+                st.session_state.chat_files = []
+            session_files = st.session_state.chat_files
+
+            if input_files:
+                client = OpenAI()
+                for input_file in input_files:
+                    if input_file.name in [
+                        file.file_name for file in session_files
+                    ]:
+                        continue
+                    file = client.files.create(
+                        file=input_file, purpose="assistants"
+                    )
+                    session_files.append(
+                        SessionFile(file_id=file.id, file_name=input_file.name)
+                    )
+                    prompt += f"\n\n*[User uploaded file: {input_file.name}]*"
+
+            st.session_state.chat_files = session_files
+        else:
+            prompt = None
+        return prompt
+
+    @classmethod
+    async def process_prompt(
+        cls, prompt: str | None, active_tools: list[Tool]
+    ) -> None:
+        if prompt:
+            st.session_state.messages.append(
+                {"role": "user", "content": prompt}
+            )
+            with st.chat_message("user"):
+                st.write(prompt)
+        if st.session_state.messages[-1]["role"] != "assistant":
+            with MonetaryCostManager(10) as cost_manager:
+                start_time = time.time()
+                await cls.generate_response(prompt, active_tools)
+                st.session_state.last_chat_cost = cost_manager.current_usage
+                end_time = time.time()
+                st.session_state.last_chat_duration = end_time - start_time
+            st.rerun()
 
     @classmethod
     async def generate_response(
@@ -355,16 +418,25 @@ class ChatPage(AppPage):
         if not prompt_input:
             return
 
+        chat_files: list[SessionFile] = st.session_state.chat_files
+        file_instructions = "You have access to the following files:\n"
+        for file in chat_files:
+            file_instructions += (
+                f"- File Name: {file.file_name} | File ID: {file.file_id}\n\n"
+            )
+
         instructions = clean_indents(
-            """
+            f"""
             You are a helpful assistant.
             - When a tool gives you answers that are cited, ALWAYS include the links in your responses. Keep the links inline as much as you can.
             - If you can, you infer the inputs to tools rather than ask for them.
-            - If a tool call fails, you say so rather than giving a back up answer.
+            - If a tool call fails, you say so rather than giving a back up answer. ALWAYS state errors. NEVER give a back up answer.
             - Whenever possible, please paralelize your tool calls and split tasks into parallel subtasks. However, don't do this if tasks are dependent on each other (e.g. you need metaculus question information BEFORE running a forecast)
             - By default, restate ALL the output that tools give you in readable markdown to the user. Do this even if the tool output is long.
             - Format your response as Markdown parsable in streamlit.write() function
             - If the forecast_question_tool is available, always use this when forecasting unless someone asks you not to.
+
+            {file_instructions if chat_files else ""}
             """
         )
 
@@ -455,6 +527,7 @@ class ChatPage(AppPage):
     def clear_chat_history(cls) -> None:
         st.session_state.messages = [cls.DEFAULT_MESSAGE]
         st.session_state.trace_id = None
+        st.session_state.chat_files = []
 
 
 if __name__ == "__main__":

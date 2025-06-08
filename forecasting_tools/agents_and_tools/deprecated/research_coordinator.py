@@ -6,14 +6,18 @@ from forecasting_tools.agents_and_tools.base_rates.base_rate_researcher import (
     BaseRateReport,
     BaseRateResearcher,
 )
-from forecasting_tools.agents_and_tools.configured_llms import BasicLlm
-from forecasting_tools.agents_and_tools.general_researcher import (
+from forecasting_tools.agents_and_tools.deprecated.configured_llms import (
+    BasicLlm,
+)
+from forecasting_tools.agents_and_tools.deprecated.general_researcher import (
     GeneralResearcher,
 )
-from forecasting_tools.agents_and_tools.question_responder import (
+from forecasting_tools.agents_and_tools.deprecated.question_responder import (
     QuestionResponder,
 )
-from forecasting_tools.agents_and_tools.question_router import QuestionRouter
+from forecasting_tools.agents_and_tools.deprecated.question_router import (
+    QuestionRouter,
+)
 from forecasting_tools.ai_models.ai_utils.ai_misc import (
     clean_indents,
     strip_code_block_markdown,
@@ -358,7 +362,7 @@ class ResearchCoordinator:
 
             # Instructions
             Please make a markdown report with three sections:
-            1. Research Overview: Give 2 paragraphs summarazing the the research done. Surface things people would want to know for a forecast.
+            1. Research Overview: Give 2 paragraphs summarazing the research done. Surface things people would want to know for a forecast.
             2. Possible Base Rates: Make one bullet point for each unique possible base rate. Prioritize numbers, and do some calculations to find historical rates if possible (e.g. if you find there are 3 successful X out of 10 X total, then state your calculation and say 3 successful X out of 10 X total is 30% success rate).
             3. Pros Section: Make one bullet point for each unique pro. These should be inside view adjustments that would move your forecast up.
             4. Cons Section: Make one bullet point for each unique con. These should be outside view adjustments that would move your forecast down.

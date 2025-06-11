@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from pydantic import BaseModel
 
@@ -10,8 +11,11 @@ from forecasting_tools.ai_models.agent_wrappers import (
     AiAgent,
     CodingTool,
     agent_tool,
+    event_to_tool_message,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
+
+logger = logging.getLogger(__name__)
 
 
 class AvailableFile(BaseModel):
@@ -30,6 +34,7 @@ class DataAnalyzer:
         additional_context: str | None = None,
         available_files: list[AvailableFile] | None = None,
     ) -> str:
+        logger.warning("Cost tracking not supported for Data Analysis Agent")
         # NOTE: See example usage here: https://github.com/openai/openai-agents-python/blob/main/examples/tools/code_interpreter.py
         if not available_files:
             available_files = []
@@ -82,15 +87,9 @@ class DataAnalyzer:
 
         final_answer = ""
         async for event in result.stream_events():
-            if (
-                event.type == "run_item_stream_event"
-                and event.item.type == "tool_call_item"
-                and event.item.raw_item.type == "code_interpreter_call"
-            ):
-                final_answer += f"Code interpreter code:\n```python\n{event.item.raw_item.code}\n```\n"
-            # elif event.type == "run_item_stream_event":
-            #     final_answer += f"Other event: {event.item.type}"
-
+            event_message = event_to_tool_message(event)
+            if event_message:
+                final_answer += event_message + "\n\n"
         final_answer += f"\n\nFinal output: {result.final_output}"
         return final_answer
 
@@ -107,9 +106,7 @@ class DataAnalyzer:
         Can run analysis on files.
         Additional context should include any other constraints or requests from the user, and as much other information that is relevant to the task as possible.
 
-        Format files as a list of dicts with the following format:
-        - file_name: str
-        - file_id: str
+        Format files as a list of dicts with the following format: {"file_name": "string", "file_id": "string"}
         """
         data_analysis = DataAnalyzer()
         available_files = (

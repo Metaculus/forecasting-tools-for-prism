@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "forecasting-tools"
-version = "0.2.43"
+version = "0.2.44"
 description = "AI forecasting and research tools to help humans reason about and forecast the future"
 authors = ["Benjamin Wilson <mokoresearch@gmail.com>"]
 license = "MIT"
@@ -46,6 +46,7 @@ asknews = ">=0.9.1,<0.12.0"
 openai-agents = "0.0.17"
 pytest-asyncio = "^1.0.0"
 unidecode = "^1.4.0"
+hyperbrowser = "^0.45.1"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^4.0.1"

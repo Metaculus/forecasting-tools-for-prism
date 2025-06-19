@@ -29,34 +29,6 @@ def test_read_file_of_outer_package() -> None:
     assert ".env" in file_contents
 
 
-def test_file_path_self_consistency() -> None:
-    outer_package_path = file_manipulation.get_absolute_path("")
-    inner_package_path = file_manipulation.get_absolute_path(
-        "forecasting_tools"
-    )
-    util_folder_path = file_manipulation.get_absolute_path(
-        "forecasting_tools/util"
-    )
-    logs_path = file_manipulation.get_absolute_path("logs")
-
-    assert outer_package_path.endswith("forecasting-tools")
-    assert inner_package_path.endswith("forecasting_tools")
-    assert util_folder_path.endswith("util")
-    assert logs_path.endswith("logs")
-
-    stripped_inner_package_path = inner_package_path.removesuffix(
-        "/forecasting_tools"
-    )
-    stripped_util_folder_path = util_folder_path.removesuffix(
-        "/forecasting_tools/util"
-    )
-    stripped_logs_path = logs_path.removesuffix("/logs")
-
-    assert outer_package_path == stripped_inner_package_path
-    assert outer_package_path == stripped_util_folder_path
-    assert outer_package_path == stripped_logs_path
-
-
 @patch("builtins.open", new_callable=mock_open)
 @patch("os.makedirs")
 def test_create_or_overwrite_file(mock_makedirs, mock_open_file):
@@ -71,7 +43,7 @@ def test_create_or_overwrite_file(mock_makedirs, mock_open_file):
         file_manipulation.create_or_overwrite_file(test_file, "test content")
         mock_makedirs.assert_called_once()
         mock_open_file.assert_called_once_with(
-            file_manipulation.get_absolute_path(test_file), "w"
+            file_manipulation.normalize_package_path(test_file), "w"
         )
 
 
@@ -91,7 +63,7 @@ def test_create_or_append_to_file(
         file_manipulation.create_or_append_to_file(test_file, "test content")
         mock_makedirs.assert_called_once()
         mock_open_file.assert_called_once_with(
-            file_manipulation.get_absolute_path(test_file), "a"
+            file_manipulation.normalize_package_path(test_file), "a"
         )
 
 
@@ -109,7 +81,7 @@ def test_log_to_file(mock_makedirs: Mock, mock_open_file: Mock) -> None:
         file_manipulation.log_to_file(test_file, "test log")
         mock_makedirs.assert_called_once()
         mock_open_file.assert_called_once_with(
-            file_manipulation.get_absolute_path(test_file), "a+"
+            file_manipulation.normalize_package_path(test_file), "a+"
         )
 
 
@@ -138,7 +110,7 @@ def test_no__with_open__usage() -> None:
     file_manipulation_name = file_manipulation.__name__.split(".")[-1] + ".py"
     excluded_files: list[str] = [file_manipulation_name]
 
-    directory_to_check = file_manipulation.get_absolute_path(
+    directory_to_check = file_manipulation.normalize_package_path(
         "forecasting_tools"
     )
     violations = find__with_open__usage(directory_to_check, excluded_files)
@@ -179,3 +151,28 @@ def test_add_to_jsonl_file_and_load_json_and_jsonl() -> None:
             file_manipulation.add_to_jsonl_file(temp_jsonl_path, [test_data4])
             loaded_jsonl = file_manipulation.load_jsonl_file(temp_jsonl_path)
             assert loaded_jsonl == test_list
+
+
+def test_file_creation_at_top_and_lower_levels() -> None:
+    test_json = {"a": 1, "b": 2}
+    test_json_file_path = "test_file.json"
+
+    try:
+        file_manipulation.write_json_file(test_json_file_path, [test_json])
+        loaded_json = file_manipulation.load_json_file(test_json_file_path)
+        assert loaded_json == [test_json]
+    finally:
+        os.remove(test_json_file_path)
+
+    test_nested_json_file_path = "temp/test_nested_file.json"
+
+    try:
+        file_manipulation.write_json_file(
+            test_nested_json_file_path, [test_json]
+        )
+        loaded_json = file_manipulation.load_json_file(
+            test_nested_json_file_path
+        )
+        assert loaded_json == [test_json]
+    finally:
+        os.remove(test_nested_json_file_path)

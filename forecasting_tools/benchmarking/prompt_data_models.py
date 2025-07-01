@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
+from forecasting_tools.benchmarking.customizable_bot import ResearchTool
 
 
 class PromptIdea(BaseModel):
@@ -12,17 +13,21 @@ class PromptIdea(BaseModel):
 
 
 @dataclass
-class PromptConfig:
-    prompt_template: str
-    llm: GeneralLlm
-    original_idea: PromptIdea
+class BotConfig:
+    reasoning_prompt_template: str
+    research_prompt_template: str
+    research_tools: list[ResearchTool]
+    reasoning_llm: GeneralLlm | str
+    research_llm: GeneralLlm | str
+    original_reasoning_idea: PromptIdea
+    original_research_idea: PromptIdea
     research_reports_per_question: int = 1
     predictions_per_research_report: int = 1
 
 
 @dataclass
 class EvaluatedPrompt:
-    prompt_config: PromptConfig
+    bot_config: BotConfig
     benchmark: BenchmarkForBot
 
     @property
@@ -31,7 +36,7 @@ class EvaluatedPrompt:
 
     @property
     def prompt_text(self) -> str:
-        return self.prompt_config.prompt_template
+        return self.bot_config.reasoning_prompt_template
 
 
 @dataclass

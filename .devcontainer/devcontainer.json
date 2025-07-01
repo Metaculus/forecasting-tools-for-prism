@@ -31,7 +31,9 @@
 				"mhutchie.git-graph",
 				"mechatroner.rainbow-csv",
 				"tamasfe.even-better-toml",
-				"ms-toolsai.jupyter"
+				"ms-toolsai.jupyter",
+				"anthropic.claude-code",
+				"coderabbit.coderabbit-vscode"
 			]
 		}
 	},

@@ -8,15 +8,16 @@ from forecasting_tools.benchmarking.benchmarker import Benchmarker
 from forecasting_tools.benchmarking.control_group_prompt import ControlPrompt
 from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
 from forecasting_tools.benchmarking.prompt_data_models import (
+    BotConfig,
     EvaluatedPrompt,
     OptimizationResult,
-    PromptConfig,
     PromptIdea,
 )
 from forecasting_tools.benchmarking.question_research_snapshot import (
     QuestionPlusResearch,
     ResearchType,
 )
+from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 
 logger = logging.getLogger(__name__)
@@ -25,12 +26,26 @@ logger = logging.getLogger(__name__)
 class PromptEvaluator:
     def __init__(
         self,
-        evaluation_questions: list[QuestionPlusResearch],
-        research_type: ResearchType,
+        input_questions: list[QuestionPlusResearch] | list[MetaculusQuestion],
+        research_type: ResearchType | None,
         concurrent_evaluation_batch_size: int,
         file_or_folder_to_save_benchmarks: str | None,
     ) -> None:
-        self.evaluation_questions = evaluation_questions
+        if research_type is None:
+            input_questions = typeguard.check_type(
+                input_questions, list[MetaculusQuestion]
+            )
+            self.evaluation_questions = input_questions
+            self.research_snapshots = []
+        else:
+            input_questions = typeguard.check_type(
+                input_questions, list[QuestionPlusResearch]
+            )
+            self.evaluation_questions = [
+                snapshot.question for snapshot in input_questions
+            ]
+            self.research_snapshots = input_questions
+
         self.research_type = research_type
         self.concurrent_evaluation_batch_size = (
             concurrent_evaluation_batch_size
@@ -40,15 +55,13 @@ class PromptEvaluator:
         )
 
     async def evaluate_prompts(
-        self, configurations: list[PromptConfig]
+        self, configurations: list[BotConfig]
     ) -> OptimizationResult:
         bots = self._configs_to_bots(configurations)
         bots = typeguard.check_type(bots, list[ForecastBot])
         benchmarker = Benchmarker(
             forecast_bots=bots,
-            questions_to_use=[
-                snapshot.question for snapshot in self.evaluation_questions
-            ],
+            questions_to_use=self.evaluation_questions,
             concurrent_question_batch_size=self.concurrent_evaluation_batch_size,
             file_path_to_save_reports=self.file_or_folder_to_save_benchmarks,
         )
@@ -56,20 +69,20 @@ class PromptEvaluator:
         evaluated_prompts: list[EvaluatedPrompt] = []
         for config, benchmark in zip(configurations, benchmarks):
             benchmark.forecast_bot_class_name = (
-                config.original_idea.short_name.replace(" ", "_")
+                config.original_reasoning_idea.short_name.replace(" ", "_")
             )
             if len(benchmark.forecast_reports) > 0:
                 evaluated_prompts.append(
-                    EvaluatedPrompt(prompt_config=config, benchmark=benchmark)
+                    EvaluatedPrompt(bot_config=config, benchmark=benchmark)
                 )
             else:
                 logger.error(
-                    f"Not including {config.original_idea.short_name} in evaluation report because it has no forecast reports"
+                    f"Not including {config.original_reasoning_idea.short_name} in evaluation report because it has no forecast reports"
                 )
         return OptimizationResult(evaluated_prompts=evaluated_prompts)
 
     def _configs_to_bots(
-        self, configs: list[PromptConfig]
+        self, configs: list[BotConfig]
     ) -> list[CustomizableBot]:
         bots = []
         for config in configs:
@@ -77,19 +90,21 @@ class PromptEvaluator:
                 raise NotImplementedError(
                     "Currently only supports one research report per question"
                 )
-            custom_class_name = config.original_idea.short_name.replace(
-                " ", "_"
+            custom_class_name = (
+                config.original_reasoning_idea.short_name.replace(" ", "_")
             )
             CustomBotClass = type(custom_class_name, (CustomizableBot,), {})
             bot = CustomBotClass(
-                originating_idea=config.original_idea,
-                reasoning_prompt=config.prompt_template,
-                research_snapshots=self.evaluation_questions,
+                originating_idea=config.original_reasoning_idea,
+                reasoning_prompt=config.reasoning_prompt_template,
+                research_prompt=config.research_prompt_template,
+                research_tools=config.research_tools,
+                cached_research=self.research_snapshots,
                 research_type=self.research_type,
                 research_reports_per_question=config.research_reports_per_question,
                 predictions_per_research_report=config.predictions_per_research_report,
                 llms={
-                    "default": config.llm,
+                    "default": config.reasoning_llm,
                 },
                 publish_reports_to_metaculus=False,
                 enable_summarize_research=False,
@@ -116,10 +131,10 @@ class PromptEvaluator:
         )
         configs = []
         if include_control_group_prompt:
-            control_group_config = PromptConfig(
-                prompt_template=ControlPrompt.get_prompt(),
-                llm=forecast_llm,
-                original_idea=PromptIdea(
+            control_group_config = BotConfig(
+                reasoning_prompt_template=ControlPrompt.get_prompt(),
+                reasoning_llm=forecast_llm,
+                original_reasoning_idea=PromptIdea(
                     short_name=f"Control Group v{ControlPrompt.version()}",
                     idea="The control group is a group of questions that are not optimized for the prompt. It is used to evaluate the performance of the optimized prompt.",
                 ),
@@ -132,10 +147,10 @@ class PromptEvaluator:
             logger.info(
                 f"{benchmark.forecast_bot_class_name} - {benchmark.average_expected_baseline_score}:\n{prompt}"
             )
-            best_prompt_config = PromptConfig(
-                prompt_template=prompt,
-                llm=forecast_llm,
-                original_idea=PromptIdea(
+            best_prompt_config = BotConfig(
+                reasoning_prompt_template=prompt,
+                reasoning_llm=forecast_llm,
+                original_reasoning_idea=PromptIdea(
                     short_name=f"{benchmark.forecast_bot_class_name}",
                     idea=f"Evaluate the prompt from {benchmark.forecast_bot_class_name} (originally found from a different dataset/origin) with model {forecast_llm.model} and {len(self.evaluation_questions)} questions",
                 ),

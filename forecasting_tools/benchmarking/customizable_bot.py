@@ -104,8 +104,8 @@ class CustomizableBot(ForecastBot):
         reasoning_prompt: str,
         research_prompt: str,
         research_tools: list[ResearchTool],
-        research_snapshots: list[QuestionPlusResearch],
-        research_type: ResearchType,
+        cached_research: list[QuestionPlusResearch] | None,
+        research_type: ResearchType | None,
         originating_idea: PromptIdea | None,
         parameters_to_exclude_from_config_dict: list[str] | None = [
             "research_snapshots"
@@ -121,20 +121,33 @@ class CustomizableBot(ForecastBot):
         self.reasoning_prompt = reasoning_prompt
         self.research_prompt = research_prompt
         self.tools = research_tools
-        self.research_snapshots = research_snapshots
         self.research_type = research_type
         self.originating_idea = originating_idea  # As of May 26, 2025 This parameter is logged in the config for the bot, even if not used here.
 
-        unique_questions = list(
-            set(
-                [
-                    snapshot.question.question_text
-                    for snapshot in research_snapshots
-                ]
+        if cached_research is not None:
+            unique_questions = list(
+                set(
+                    [
+                        snapshot.question.question_text
+                        for snapshot in cached_research
+                    ]
+                )
             )
-        )
-        if len(unique_questions) != len(research_snapshots):
-            raise ValueError("Research snapshots must have unique questions")
+            if len(unique_questions) != len(cached_research):
+                raise ValueError(
+                    "Research snapshots must have unique questions"
+                )
+            if research_type is None:
+                raise ValueError(
+                    "Research type must be provided if cached research is provided"
+                )
+        else:
+            if research_type is not None:
+                raise ValueError(
+                    "Research type must be None if cached research is None"
+                )
+
+        self.cached_research = cached_research or []
 
     @classmethod
     def _llm_config_defaults(cls) -> dict[str, str | GeneralLlm | None]:
@@ -172,7 +185,7 @@ class CustomizableBot(ForecastBot):
     async def run_research(self, question: MetaculusQuestion) -> str:
         matching_snapshots = [
             snapshot
-            for snapshot in self.research_snapshots
+            for snapshot in self.cached_research
             if snapshot.question == question
         ]
         if len(matching_snapshots) == 1:

@@ -11,9 +11,9 @@ from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.control_group_prompt import ControlPrompt
 from forecasting_tools.benchmarking.prompt_data_models import (
+    BotConfig,
     EvaluatedPrompt,
     OptimizationResult,
-    PromptConfig,
     PromptIdea,
 )
 from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
@@ -58,16 +58,16 @@ class PromptOptimizer:
             )
 
     async def create_optimized_prompt(self) -> OptimizationResult:
-        initial_seed_prompt_config = PromptConfig(
-            prompt_template=self.initial_prompt,
-            llm=self.forecast_llm,
-            original_idea=PromptIdea(
+        initial_seed_prompt_config = BotConfig(
+            reasoning_prompt_template=self.initial_prompt,
+            reasoning_llm=self.forecast_llm,
+            original_reasoning_idea=PromptIdea(
                 short_name="Initial Seed",
                 idea="The user-provided initial prompt.",
             ),
         )
 
-        new_prompt_configs: list[PromptConfig] = [initial_seed_prompt_config]
+        new_prompt_configs: list[BotConfig] = [initial_seed_prompt_config]
         if self.initial_prompt_population_size > 0:
             additional_initial_prompts = await self._mutate_prompt(
                 initial_seed_prompt_config, self.initial_prompt_population_size
@@ -99,20 +99,20 @@ class PromptOptimizer:
             logger.debug(f"Current survivors: {current_survivors}")
             best_survivor = current_survivors[0]
             logger.info(
-                f"Best survivor: {best_survivor.prompt_config.original_idea.short_name} with score {best_survivor.score:.4f}. Prompt:\n {best_survivor.prompt_config.prompt_template}"
+                f"Best survivor: {best_survivor.bot_config.original_reasoning_idea.short_name} with score {best_survivor.score:.4f}. Prompt:\n {best_survivor.bot_config.reasoning_prompt_template}"
             )
 
-            mutated_configs: list[PromptConfig] = []
+            mutated_configs: list[BotConfig] = []
             mutation_tasks = [
                 self._mutate_prompt(
-                    ep.prompt_config, self.mutated_prompts_per_survivor
+                    ep.bot_config, self.mutated_prompts_per_survivor
                 )
                 for ep in current_survivors
             ]
             initial_mutation_results = await asyncio.gather(
                 *mutation_tasks, return_exceptions=True
             )
-            mutation_results: list[list[PromptConfig]] = [
+            mutation_results: list[list[BotConfig]] = [
                 result
                 for result in initial_mutation_results
                 if not isinstance(result, BaseException)
@@ -121,7 +121,7 @@ class PromptOptimizer:
                 mutated_configs.extend(mutation_list)
             logger.info(f"Generated {len(mutated_configs)} mutated prompts.")
 
-            bred_configs: list[PromptConfig] = []
+            bred_configs: list[BotConfig] = []
             try:
                 bred_configs = await self._breed_prompts(current_survivors)
             except Exception as e:
@@ -131,21 +131,21 @@ class PromptOptimizer:
 
             new_prompt_configs = mutated_configs + bred_configs
             for pc in new_prompt_configs:
-                assert pc.prompt_template not in [
-                    ep.prompt_config.prompt_template
+                assert pc.reasoning_prompt_template not in [
+                    ep.bot_config.reasoning_prompt_template
                     for ep in all_evaluated_prompts
-                ], f"Duplicate prompt template found: {pc.prompt_template}"
+                ], f"Duplicate prompt template found: {pc.reasoning_prompt_template}"
 
         return OptimizationResult(evaluated_prompts=all_evaluated_prompts)
 
     async def _mutate_prompt(
         self,
-        prompt: EvaluatedPrompt | PromptConfig,
+        prompt: EvaluatedPrompt | BotConfig,
         num_mutations_to_generate: int,
-    ) -> list[PromptConfig]:
+    ) -> list[BotConfig]:
         num_worst_reports = 3
         if isinstance(prompt, EvaluatedPrompt):
-            parent_prompt_config = prompt.prompt_config
+            parent_prompt_config = prompt.bot_config
             worst_reports = prompt.benchmark.get_bottom_n_forecast_reports(
                 num_worst_reports
             )
@@ -199,12 +199,12 @@ class PromptOptimizer:
                 nth idea: ... continue alternating between significant variation and highly diverse (not slight)...
 
                 # Original Prompt Idea Details
-                Name: {parent_prompt_config.original_idea.short_name}
-                Core Idea: {parent_prompt_config.original_idea.idea}
+                Name: {parent_prompt_config.original_reasoning_idea.short_name}
+                Core Idea: {parent_prompt_config.original_reasoning_idea.idea}
 
                 Original Prompt Template (for context only, do not reproduce it in your output):
                 ```
-                {parent_prompt_config.prompt_template}
+                {parent_prompt_config.reasoning_prompt_template}
                 ```
 
                 {report_str}
@@ -223,7 +223,7 @@ class PromptOptimizer:
         )
 
         mutation_agent_task = (
-            f"Generate {num_mutations_to_generate} mutated prompt ideas for the prompt named '{parent_prompt_config.original_idea.short_name}'. "
+            f"Generate {num_mutations_to_generate} mutated prompt ideas for the prompt named '{parent_prompt_config.original_reasoning_idea.short_name}'. "
             f"Ensure each mutation aligns with the requested degree of variation."
         )
         output = await AgentRunner.run(agent_mutate_ideas, mutation_agent_task)
@@ -231,7 +231,7 @@ class PromptOptimizer:
             output.final_output, list[PromptIdea]
         )
         logger.info(
-            f"Successfully structured {len(mutated_ideas)} mutation ideas for prompt '{parent_prompt_config.original_idea.short_name}'. Requested {num_mutations_to_generate}."
+            f"Successfully structured {len(mutated_ideas)} mutation ideas for prompt '{parent_prompt_config.original_reasoning_idea.short_name}'. Requested {num_mutations_to_generate}."
         )
 
         initial_new_prompt_configs = await asyncio.gather(
@@ -241,7 +241,7 @@ class PromptOptimizer:
             ],
             return_exceptions=True,
         )
-        new_prompt_configs: list[PromptConfig] = [
+        new_prompt_configs: list[BotConfig] = [
             result
             for result in initial_new_prompt_configs
             if not isinstance(result, BaseException)
@@ -259,7 +259,7 @@ class PromptOptimizer:
 
     async def _breed_prompts(
         self, parent_evaluated_prompts: list[EvaluatedPrompt]
-    ) -> list[PromptConfig]:
+    ) -> list[BotConfig]:
         num_to_breed = self.breeded_prompts_per_iteration
         if num_to_breed == 0:
             return []
@@ -270,15 +270,15 @@ class PromptOptimizer:
 
         parent_details_list = []
         for i, ep in enumerate(parent_evaluated_prompts):
-            pc = ep.prompt_config
+            pc = ep.bot_config
             parent_details_list.append(
                 clean_indents(
                     f"""
-                    Parent Prompt {i + 1} (Original Name: '{pc.original_idea.short_name}'):
-                    Core Idea: {pc.original_idea.idea}
+                    Parent Prompt {i + 1} (Original Name: '{pc.original_reasoning_idea.short_name}'):
+                    Core Idea: {pc.original_reasoning_idea.idea}
                     Full Template (for context):
                     ```
-                    {pc.prompt_template}
+                    {pc.reasoning_prompt_template}
                     ```
                     """
                 )
@@ -342,7 +342,7 @@ class PromptOptimizer:
             *[self._prompt_idea_to_prompt_config(idea) for idea in bred_ideas],
             return_exceptions=True,
         )
-        new_prompt_configs: list[PromptConfig] = [
+        new_prompt_configs: list[BotConfig] = [
             result
             for result in initial_new_prompt_configs
             if not isinstance(result, BaseException)
@@ -425,14 +425,14 @@ class PromptOptimizer:
 
     async def _prompt_idea_to_prompt_config(
         self, prompt_idea: PromptIdea
-    ) -> PromptConfig:
+    ) -> BotConfig:
         prompt_template = await self._prompt_idea_to_prompt_string(prompt_idea)
         if not prompt_template:
             raise ValueError(
                 f"No prompt template generated for idea: '{prompt_idea.short_name}'"
             )
-        return PromptConfig(
-            prompt_template=prompt_template,
-            llm=self.forecast_llm,
-            original_idea=prompt_idea,
+        return BotConfig(
+            reasoning_prompt_template=prompt_template,
+            reasoning_llm=self.forecast_llm,
+            original_reasoning_idea=prompt_idea,
         )

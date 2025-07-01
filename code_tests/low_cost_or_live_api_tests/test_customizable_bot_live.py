@@ -24,7 +24,7 @@ async def test_customizable_bot_runs() -> None:
         research_tools=[
             ResearchTool(tool=perplexity_quick_search, max_calls=2)
         ],
-        research_snapshots=[],
+        cached_research=[],
         research_type=ResearchType.ASK_NEWS_SUMMARIES,
         llms={"default": "gpt-4.1-mini", "researcher": "gpt-4.1-mini"},
         originating_idea=PromptIdea(
@@ -54,7 +54,7 @@ async def test_customizable_bot_respects_max_tool_calls_limit() -> None:
         reasoning_prompt="Give me a probability of {question_text} happening.",
         research_prompt="Research the internet for {question_text}.",
         research_tools=[ResearchTool(tool=research_internet, max_calls=2)],
-        research_snapshots=[],
+        cached_research=[],
         research_type=ResearchType.ASK_NEWS_SUMMARIES,
         llms={"default": "gpt-4.1-mini", "researcher": "gpt-4.1-mini"},
         originating_idea=PromptIdea(

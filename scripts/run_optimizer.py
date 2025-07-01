@@ -36,7 +36,7 @@ async def run_optimizer() -> None:
         logger.info(f"Run {run + 1} of {start_fresh_optimization_runs}")
         logger.info(f"Loaded {len(evaluation_questions)} evaluation questions")
         evaluator = PromptEvaluator(
-            evaluation_questions=evaluation_questions,
+            input_questions=evaluation_questions,
             research_type=ResearchType.ASK_NEWS_SUMMARIES,
             concurrent_evaluation_batch_size=questions_batch_size,
             file_or_folder_to_save_benchmarks="logs/forecasts/benchmarks/",
@@ -51,9 +51,9 @@ async def run_optimizer() -> None:
         evaluated_prompts = evaluation_result.evaluated_prompts
         for evaluated_prompt in evaluated_prompts:
             logger.info(
-                f"Name: {evaluated_prompt.prompt_config.original_idea.short_name}"
+                f"Name: {evaluated_prompt.bot_config.original_reasoning_idea.short_name}"
             )
-            logger.info(f"Config: {evaluated_prompt.prompt_config}")
+            logger.info(f"Config: {evaluated_prompt.bot_config}")
             logger.info(f"Code: {evaluated_prompt.benchmark.code}")
             logger.info(
                 f"Forecast Bot Class Name: {evaluated_prompt.benchmark.forecast_bot_class_name}"

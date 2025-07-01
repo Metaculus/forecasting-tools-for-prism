@@ -26,7 +26,7 @@ async def test_prompt_optimizer() -> None:
         ],
     )
     evaluator = PromptEvaluator(
-        evaluation_questions=[research_snapshot],
+        input_questions=[research_snapshot],
         research_type=ResearchType.ASK_NEWS_SUMMARIES,
         concurrent_evaluation_batch_size=10,
         file_or_folder_to_save_benchmarks=None,

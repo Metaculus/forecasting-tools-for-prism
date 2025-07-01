@@ -51,7 +51,7 @@ async def run_higher_model_evaluation() -> None:
     # --- Run the evaluation ---
     for forecast_llm in forecast_llms:
         evaluator = PromptEvaluator(
-            evaluation_questions=evaluation_questions,
+            input_questions=evaluation_questions,
             research_type=ResearchType.ASK_NEWS_SUMMARIES,
             concurrent_evaluation_batch_size=questions_batch_size,
             file_or_folder_to_save_benchmarks="logs/forecasts/benchmarks/",
@@ -67,9 +67,9 @@ async def run_higher_model_evaluation() -> None:
         )
         for evaluated_prompt in evaluation_result.evaluated_prompts:
             logger.info(
-                f"Name: {evaluated_prompt.prompt_config.original_idea.short_name}"
+                f"Name: {evaluated_prompt.bot_config.original_reasoning_idea.short_name}"
             )
-            logger.info(f"Config: {evaluated_prompt.prompt_config}")
+            logger.info(f"Config: {evaluated_prompt.bot_config}")
             logger.info(f"Code: {evaluated_prompt.benchmark.code}")
             logger.info(
                 f"Forecast Bot Class Name: {evaluated_prompt.benchmark.forecast_bot_class_name}"

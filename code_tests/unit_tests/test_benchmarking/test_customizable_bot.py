@@ -7,7 +7,10 @@ from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
 )
 from forecasting_tools.ai_models.agent_wrappers import agent_tool
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
+from forecasting_tools.benchmarking.customizable_bot import (
+    CustomizableBot,
+    ResearchTool,
+)
 from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
 from forecasting_tools.benchmarking.question_research_snapshot import (
     QuestionPlusResearch,
@@ -31,11 +34,14 @@ def mock_llm() -> MagicMock:
 
 
 @agent_tool
-def mock_tool(input: str) -> str:
+def _fake_tool(input: str) -> str:
     """
     Mock tool that returns a research result
     """
     return f"Mock tool output. Input was: {input}"
+
+
+mock_tool = ResearchTool(tool=_fake_tool, max_calls=2)
 
 
 @pytest.fixture
@@ -76,7 +82,6 @@ def customizable_bot(
             short_name="Test idea",
             idea="Test idea process",
         ),
-        max_tool_calls_per_research=3,
     )
 
 
@@ -142,7 +147,6 @@ async def test_customizable_bot_run_research_duplicate_questions_in_snapshots(
                 short_name="Test idea",
                 idea="Test idea process",
             ),
-            max_tool_calls_per_research=5,
         )
 
 
@@ -161,7 +165,6 @@ async def test_customizable_bot_raises_error_when_no_researcher_llm_configured(
             short_name="Test idea",
             idea="Test idea process",
         ),
-        max_tool_calls_per_research=5,
     )
 
     question = ForecastingTestManager.get_fake_binary_question(

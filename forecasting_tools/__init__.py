@@ -27,6 +27,9 @@ from forecasting_tools.agents_and_tools.question_generators.topic_generator impo
 from forecasting_tools.ai_models.ai_utils.ai_misc import (
     clean_indents as clean_indents,
 )
+from forecasting_tools.ai_models.ai_utils.openai_utils import (
+    VisionMessageData as VisionMessageData,
+)
 from forecasting_tools.ai_models.deprecated_model_classes.claude35sonnet import (
     Claude35Sonnet as Claude35Sonnet,
 )

@@ -4,7 +4,7 @@ import logging
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
 from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
+    QuestionPlusResearch,
     ResearchType,
 )
 from forecasting_tools.util.custom_logger import CustomLogger
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 async def run_higher_model_evaluation() -> None:
     # --- Evaluation Parameters ---
-    evaluation_questions = QuestionResearchSnapshot.load_json_from_file_path(
+    evaluation_questions = QuestionPlusResearch.load_json_from_file_path(
         "logs/forecasts/benchmarks/question_snapshots_v1.6.test__230qs.json"
     )
 

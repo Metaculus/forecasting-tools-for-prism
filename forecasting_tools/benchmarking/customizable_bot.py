@@ -2,10 +2,16 @@ import logging
 
 from pydantic import BaseModel, field_validator
 
+from forecasting_tools.ai_models.agent_wrappers import (
+    AgentRunner,
+    AgentSdkLlm,
+    AgentTool,
+    AiAgent,
+)
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
 from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
+    QuestionPlusResearch,
     ResearchType,
 )
 from forecasting_tools.data_models.forecast_report import ReasonedPrediction
@@ -48,10 +54,13 @@ class BinaryPrediction(BaseModel):
 class CustomizableBot(ForecastBot):
     def __init__(
         self,
-        prompt: str,
-        research_snapshots: list[QuestionResearchSnapshot],
+        reasoning_prompt: str,
+        research_prompt: str,
+        research_tools: list[AgentTool],
+        research_snapshots: list[QuestionPlusResearch],
         research_type: ResearchType,
         originating_idea: PromptIdea | None,
+        max_tool_calls_per_research: int,
         parameters_to_exclude_from_config_dict: list[str] | None = [
             "research_snapshots"
         ],
@@ -63,10 +72,13 @@ class CustomizableBot(ForecastBot):
             parameters_to_exclude_from_config_dict=parameters_to_exclude_from_config_dict,
             **kwargs,
         )
-        self.prompt = prompt
+        self.reasoning_prompt = reasoning_prompt
+        self.research_prompt = research_prompt
+        self.tools = research_tools
         self.research_snapshots = research_snapshots
         self.research_type = research_type
         self.originating_idea = originating_idea  # As of May 26, 2025 This parameter is logged in the config for the bot, even if not used here.
+        self.max_tool_calls_per_research = max_tool_calls_per_research
 
         unique_questions = list(
             set(
@@ -93,11 +105,52 @@ class CustomizableBot(ForecastBot):
             for snapshot in self.research_snapshots
             if snapshot.question == question
         ]
-        if len(matching_snapshots) != 1:
+        if len(matching_snapshots) == 1:
+            return matching_snapshots[0].get_research_for_type(
+                self.research_type
+            )
+
+        if len(matching_snapshots) > 1:
             raise ValueError(
                 f"Expected 1 research snapshot for question {question.page_url}, got {len(matching_snapshots)}"
             )
-        return matching_snapshots[0].get_research_for_type(self.research_type)
+
+        if not self.tools:
+            raise ValueError(
+                f"No research snapshot found for question {question.page_url} and no research tools available"
+            )
+
+        return await self._run_research_with_tools(question)
+
+    async def _run_research_with_tools(
+        self, question: MetaculusQuestion
+    ) -> str:
+        research_llm = self.get_llm("researcher")
+        if not isinstance(research_llm, str):
+            raise ValueError("Research LLM must be a string model name")
+
+        formatted_prompt = self.research_prompt.format(
+            question_text=question.question_text,
+            background_info=question.background_info,
+            resolution_criteria=question.resolution_criteria,
+            fine_print=question.fine_print,
+        )
+
+        agent = AiAgent(
+            name="Research Agent",
+            instructions=formatted_prompt,
+            model=AgentSdkLlm(model=research_llm),
+            tools=self.tools,  # type: ignore
+            handoffs=[],
+        )
+
+        result = AgentRunner.run_streamed(
+            agent,
+            f"Please research the following question: {question.question_text}",
+            max_turns=self.max_tool_calls_per_research,
+        )
+
+        return result.final_output
 
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str
@@ -110,11 +163,11 @@ class CustomizableBot(ForecastBot):
         ]
 
         for required_variable in required_variables:
-            if required_variable not in self.prompt:
+            if required_variable not in self.reasoning_prompt:
                 raise ValueError(
-                    f"Prompt {self.prompt} does not contain {required_variable}"
+                    f"Prompt {self.reasoning_prompt} does not contain {required_variable}"
                 )
-        prompt = self.prompt.format(
+        prompt = self.reasoning_prompt.format(
             question_text=question.question_text,
             background_info=question.background_info,
             resolution_criteria=question.resolution_criteria,

@@ -8,7 +8,7 @@ from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import 
 from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
 from forecasting_tools.benchmarking.prompt_optimizer import PromptOptimizer
 from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
+    QuestionPlusResearch,
     ResearchItem,
     ResearchType,
 )
@@ -16,7 +16,7 @@ from forecasting_tools.benchmarking.question_research_snapshot import (
 
 async def test_prompt_optimizer() -> None:
     question = ForecastingTestManager.get_fake_binary_question()
-    research_snapshot = QuestionResearchSnapshot(
+    research_snapshot = QuestionPlusResearch(
         question=question,
         research_items=[
             ResearchItem(

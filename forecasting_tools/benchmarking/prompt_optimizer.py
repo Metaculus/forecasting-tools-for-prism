@@ -9,9 +9,7 @@ from forecasting_tools.ai_models.agent_wrappers import (
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.control_group_prompt import (
-    ControlGroupPrompt,
-)
+from forecasting_tools.benchmarking.control_group_prompt import ControlPrompt
 from forecasting_tools.benchmarking.prompt_data_models import (
     EvaluatedPrompt,
     OptimizationResult,
@@ -40,7 +38,7 @@ class PromptOptimizer:
         mutated_prompts_per_survivor: int = 4,
         breeded_prompts_per_iteration: int = 5,
     ) -> None:
-        self.initial_prompt = initial_prompt or ControlGroupPrompt.get_prompt()
+        self.initial_prompt = initial_prompt or ControlPrompt.get_prompt()
         self.iterations = iterations
         self.initial_prompt_population_size = initial_prompt_population_size
         self.survivors_per_iteration = survivors_per_iteration

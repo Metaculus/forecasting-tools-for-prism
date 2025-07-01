@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from forecasting_tools.data_models.data_organizer import QuestionTypes
 from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
@@ -35,15 +35,18 @@ class ResearchItem(BaseModel):
         return value
 
 
-class QuestionResearchSnapshot(BaseModel, Jsonable):
+class QuestionPlusResearch(BaseModel, Jsonable):
     question: QuestionTypes
     research_items: list[ResearchItem]
-    time_stamp: datetime = Field(default_factory=datetime.now)
+    research_timestamp: datetime = Field(
+        default_factory=datetime.now,
+        validation_alias=AliasChoices("research_timestamp", "time_stamp"),
+    )
 
     @classmethod
     async def create_snapshot_of_question(
         cls, question: QuestionTypes
-    ) -> QuestionResearchSnapshot:
+    ) -> QuestionPlusResearch:
         ask_news_summaries = await AskNewsSearcher().get_formatted_news_async(
             question.question_text
         )

@@ -5,7 +5,7 @@ from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
 from forecasting_tools.benchmarking.prompt_optimizer import PromptOptimizer
 from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
+    QuestionPlusResearch,
     ResearchType,
 )
 from forecasting_tools.util.custom_logger import CustomLogger
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 async def run_optimizer() -> None:
     # -------- Configure the optimizer -----
-    evaluation_questions = QuestionResearchSnapshot.load_json_from_file_path(
+    evaluation_questions = QuestionPlusResearch.load_json_from_file_path(
         "logs/forecasts/question_snapshots_v1.6.train__112qs.json"
     )
     forecast_llm = GeneralLlm(

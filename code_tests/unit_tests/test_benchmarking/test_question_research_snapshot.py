@@ -4,7 +4,7 @@ from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
     ForecastingTestManager,
 )
 from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
+    QuestionPlusResearch,
     ResearchItem,
     ResearchType,
 )
@@ -20,7 +20,7 @@ def test_get_research_for_type_success() -> None:
             research="other data", type=ResearchType.ASK_NEWS_DEEP_RESEARCH
         ),
     ]
-    snapshot = QuestionResearchSnapshot(
+    snapshot = QuestionPlusResearch(
         question=question, research_items=research_items
     )
 
@@ -37,7 +37,7 @@ def test_get_research_for_type_not_found() -> None:
             research="other data", type=ResearchType.ASK_NEWS_DEEP_RESEARCH
         ),
     ]
-    snapshot = QuestionResearchSnapshot(
+    snapshot = QuestionPlusResearch(
         question=question, research_items=research_items
     )
 
@@ -55,7 +55,7 @@ def test_get_research_for_type_multiple_found() -> None:
             research="news data 2", type=ResearchType.ASK_NEWS_SUMMARIES
         ),
     ]
-    snapshot = QuestionResearchSnapshot(
+    snapshot = QuestionPlusResearch(
         question=question, research_items=research_items
     )
 

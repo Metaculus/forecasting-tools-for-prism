@@ -1,4 +1,4 @@
-class ControlGroupPrompt:
+class ControlPrompt:
     @classmethod
     def get_prompt(cls) -> str:
         return _CONTROL_GROUP_PROMPT

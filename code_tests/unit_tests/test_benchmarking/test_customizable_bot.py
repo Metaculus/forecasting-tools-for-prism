@@ -1,15 +1,16 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
     ForecastingTestManager,
 )
+from forecasting_tools.ai_models.agent_wrappers import agent_tool
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
 from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
 from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
+    QuestionPlusResearch,
     ResearchItem,
     ResearchType,
 )
@@ -29,10 +30,18 @@ def mock_llm() -> MagicMock:
     return llm
 
 
+@agent_tool
+def mock_tool(input: str) -> str:
+    """
+    Mock tool that returns a research result
+    """
+    return f"Mock tool output. Input was: {input}"
+
+
 @pytest.fixture
-def research_snapshots() -> list[QuestionResearchSnapshot]:
+def research_snapshots() -> list[QuestionPlusResearch]:
     return [
-        QuestionResearchSnapshot(
+        QuestionPlusResearch(
             question=fake_question_1,
             research_items=[
                 ResearchItem(
@@ -40,7 +49,7 @@ def research_snapshots() -> list[QuestionResearchSnapshot]:
                 )
             ],
         ),
-        QuestionResearchSnapshot(
+        QuestionPlusResearch(
             question=fake_question_2,
             research_items=[
                 ResearchItem(
@@ -53,17 +62,21 @@ def research_snapshots() -> list[QuestionResearchSnapshot]:
 
 @pytest.fixture
 def customizable_bot(
-    mock_llm: MagicMock, research_snapshots: list[QuestionResearchSnapshot]
+    mock_llm: MagicMock,
+    research_snapshots: list[QuestionPlusResearch],
 ) -> CustomizableBot:
     return CustomizableBot(
-        prompt="Test prompt with {question_text} and {research}",
+        reasoning_prompt="Test prompt with {question_text} and {research}",
+        research_prompt="Research prompt for {question_text}",
+        research_tools=[mock_tool],
         research_snapshots=research_snapshots,
         research_type=ResearchType.ASK_NEWS_SUMMARIES,
-        llms={"default": mock_llm},
+        llms={"default": mock_llm, "researcher": "gpt-4o-mini"},
         originating_idea=PromptIdea(
             short_name="Test idea",
             idea="Test idea process",
         ),
+        max_tool_calls_per_research=3,
     )
 
 
@@ -81,8 +94,18 @@ async def test_customizable_bot_run_research_question_not_found(
     question = ForecastingTestManager.get_fake_binary_question(
         question_text="Q3 - not in snapshots"
     )
-    with pytest.raises(ValueError):
-        await customizable_bot.run_research(question)
+
+    with patch.object(
+        customizable_bot,
+        customizable_bot._run_research_with_tools.__name__,
+        new_callable=AsyncMock,
+    ) as mock_run_research:
+        mock_run_research.return_value = "Research result from tools"
+
+        result = await customizable_bot.run_research(question)
+
+        assert result == "Research result from tools"
+        mock_run_research.assert_called_once_with(question)
 
 
 async def test_customizable_bot_run_research_duplicate_questions_in_snapshots(
@@ -90,7 +113,7 @@ async def test_customizable_bot_run_research_duplicate_questions_in_snapshots(
 ) -> None:
     q1 = ForecastingTestManager.get_fake_binary_question(question_text="Q1")
     snapshots = [
-        QuestionResearchSnapshot(
+        QuestionPlusResearch(
             question=q1,
             research_items=[
                 ResearchItem(
@@ -98,7 +121,7 @@ async def test_customizable_bot_run_research_duplicate_questions_in_snapshots(
                 )
             ],
         ),
-        QuestionResearchSnapshot(
+        QuestionPlusResearch(
             question=q1,  # Duplicate question
             research_items=[
                 ResearchItem(
@@ -109,7 +132,9 @@ async def test_customizable_bot_run_research_duplicate_questions_in_snapshots(
     ]
     with pytest.raises(ValueError):
         CustomizableBot(
-            prompt="Test prompt",
+            reasoning_prompt="Test prompt",
+            research_prompt="Research prompt",
+            research_tools=[],
             research_snapshots=snapshots,
             research_type=ResearchType.ASK_NEWS_SUMMARIES,
             llms={"default": mock_llm},
@@ -117,4 +142,31 @@ async def test_customizable_bot_run_research_duplicate_questions_in_snapshots(
                 short_name="Test idea",
                 idea="Test idea process",
             ),
+            max_tool_calls_per_research=5,
         )
+
+
+async def test_customizable_bot_raises_error_when_no_researcher_llm_configured(
+    mock_llm: MagicMock,
+    research_snapshots: list[QuestionPlusResearch],
+) -> None:
+    bot = CustomizableBot(
+        reasoning_prompt="Test prompt",
+        research_prompt="Research prompt",
+        research_tools=[mock_tool],
+        research_snapshots=research_snapshots,
+        research_type=ResearchType.ASK_NEWS_SUMMARIES,
+        llms={"default": mock_llm},
+        originating_idea=PromptIdea(
+            short_name="Test idea",
+            idea="Test idea process",
+        ),
+        max_tool_calls_per_research=5,
+    )
+
+    question = ForecastingTestManager.get_fake_binary_question(
+        question_text="Q3 - not in snapshots"
+    )
+
+    with pytest.raises(ValueError, match="LLM is undefined"):
+        await bot.run_research(question)

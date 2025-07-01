@@ -5,9 +5,7 @@ import typeguard
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
 from forecasting_tools.benchmarking.benchmarker import Benchmarker
-from forecasting_tools.benchmarking.control_group_prompt import (
-    ControlGroupPrompt,
-)
+from forecasting_tools.benchmarking.control_group_prompt import ControlPrompt
 from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
 from forecasting_tools.benchmarking.prompt_data_models import (
     EvaluatedPrompt,
@@ -16,7 +14,7 @@ from forecasting_tools.benchmarking.prompt_data_models import (
     PromptIdea,
 )
 from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
+    QuestionPlusResearch,
     ResearchType,
 )
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
@@ -27,7 +25,7 @@ logger = logging.getLogger(__name__)
 class PromptEvaluator:
     def __init__(
         self,
-        evaluation_questions: list[QuestionResearchSnapshot],
+        evaluation_questions: list[QuestionPlusResearch],
         research_type: ResearchType,
         concurrent_evaluation_batch_size: int,
         file_or_folder_to_save_benchmarks: str | None,
@@ -85,7 +83,7 @@ class PromptEvaluator:
             CustomBotClass = type(custom_class_name, (CustomizableBot,), {})
             bot = CustomBotClass(
                 originating_idea=config.original_idea,
-                prompt=config.prompt_template,
+                reasoning_prompt=config.prompt_template,
                 research_snapshots=self.evaluation_questions,
                 research_type=self.research_type,
                 research_reports_per_question=config.research_reports_per_question,
@@ -109,7 +107,7 @@ class PromptEvaluator:
         research_reports_per_question: int = 1,
         num_predictions_per_research_report: int = 1,
     ) -> OptimizationResult:
-        best_benchmarks = self._get_best_benchmark_prompt(
+        best_benchmarks = self._get_best_benchmark_prompts(
             benchmark_files, top_n_prompts, include_worst_prompt
         )
 
@@ -119,10 +117,10 @@ class PromptEvaluator:
         configs = []
         if include_control_group_prompt:
             control_group_config = PromptConfig(
-                prompt_template=ControlGroupPrompt.get_prompt(),
+                prompt_template=ControlPrompt.get_prompt(),
                 llm=forecast_llm,
                 original_idea=PromptIdea(
-                    short_name=f"Control Group v{ControlGroupPrompt.version()}",
+                    short_name=f"Control Group v{ControlPrompt.version()}",
                     idea="The control group is a group of questions that are not optimized for the prompt. It is used to evaluate the performance of the optimized prompt.",
                 ),
                 predictions_per_research_report=num_predictions_per_research_report,
@@ -147,7 +145,7 @@ class PromptEvaluator:
         return evaluation_result
 
     @classmethod
-    def _get_best_benchmark_prompt(
+    def _get_best_benchmark_prompts(
         cls,
         file_paths: list[str],
         top_n_prompts: int = 1,

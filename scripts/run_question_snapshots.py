@@ -4,7 +4,7 @@ import math
 import random
 
 from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
+    QuestionPlusResearch,
 )
 from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
 from forecasting_tools.util.custom_logger import CustomLogger
@@ -38,19 +38,17 @@ async def snapshot_questions() -> None:
         ]
         batch_snapshots = await asyncio.gather(
             *[
-                QuestionResearchSnapshot.create_snapshot_of_question(question)
+                QuestionPlusResearch.create_snapshot_of_question(question)
                 for question in batch_questions
             ]
         )
         snapshots.extend(batch_snapshots)
         random.shuffle(snapshots)
-        QuestionResearchSnapshot.save_object_list_to_file_path(
+        QuestionPlusResearch.save_object_list_to_file_path(
             snapshots, file_name
         )
         logger.info(f"Saved {len(snapshots)} snapshots to {file_name}")
-    QuestionResearchSnapshot.save_object_list_to_file_path(
-        snapshots, file_name
-    )
+    QuestionPlusResearch.save_object_list_to_file_path(snapshots, file_name)
 
 
 if __name__ == "__main__":

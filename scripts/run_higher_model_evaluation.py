@@ -3,7 +3,7 @@ import logging
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
-from forecasting_tools.benchmarking.question_research_snapshot import (
+from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
     ResearchType,
 )

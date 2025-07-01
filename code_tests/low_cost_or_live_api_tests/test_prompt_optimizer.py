@@ -7,7 +7,7 @@ from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import 
 )
 from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
 from forecasting_tools.benchmarking.prompt_optimizer import PromptOptimizer
-from forecasting_tools.benchmarking.question_research_snapshot import (
+from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
     ResearchItem,
     ResearchType,

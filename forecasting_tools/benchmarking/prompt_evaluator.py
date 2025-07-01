@@ -13,7 +13,7 @@ from forecasting_tools.benchmarking.prompt_data_models import (
     OptimizationResult,
     PromptIdea,
 )
-from forecasting_tools.benchmarking.question_research_snapshot import (
+from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
     ResearchType,
 )

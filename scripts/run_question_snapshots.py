@@ -3,7 +3,7 @@ import logging
 import math
 import random
 
-from forecasting_tools.benchmarking.question_research_snapshot import (
+from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
 )
 from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi

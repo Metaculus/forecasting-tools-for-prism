@@ -12,7 +12,7 @@ from forecasting_tools.benchmarking.customizable_bot import (
     ResearchTool,
 )
 from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
-from forecasting_tools.benchmarking.question_research_snapshot import (
+from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
     ResearchItem,
     ResearchType,

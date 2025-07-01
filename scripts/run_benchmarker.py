@@ -7,7 +7,7 @@ from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import 
     MonetaryCostManager,
 )
 from forecasting_tools.benchmarking.benchmarker import Benchmarker
-from forecasting_tools.benchmarking.question_research_snapshot import (
+from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
 )
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot

@@ -7,11 +7,11 @@ from forecasting_tools.agents_and_tools.misc_tools import (
     perplexity_quick_search,
 )
 from forecasting_tools.ai_models.agent_wrappers import agent_tool
-from forecasting_tools.benchmarking.customizable_bot import (
-    CustomizableBot,
+from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
+from forecasting_tools.benchmarking.prompt_data_models import (
+    PromptIdea,
     ResearchTool,
 )
-from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
 from forecasting_tools.benchmarking.question_plus_research import ResearchType
 
 

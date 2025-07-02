@@ -2,14 +2,20 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
+from forecasting_tools.ai_models.agent_wrappers import AgentTool
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
-from forecasting_tools.benchmarking.customizable_bot import ResearchTool
 
 
 class PromptIdea(BaseModel):
     short_name: str
     idea: str
+
+
+@dataclass
+class ResearchTool:
+    tool: AgentTool
+    max_calls: int | None
 
 
 @dataclass

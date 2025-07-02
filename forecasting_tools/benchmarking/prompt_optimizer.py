@@ -235,10 +235,7 @@ class PromptOptimizer:
         )
 
         initial_new_prompt_configs = await asyncio.gather(
-            *[
-                self._prompt_idea_to_prompt_config(idea)
-                for idea in mutated_ideas
-            ],
+            *[self._prompt_idea_to_bot_config(idea) for idea in mutated_ideas],
             return_exceptions=True,
         )
         new_prompt_configs: list[BotConfig] = [
@@ -339,7 +336,7 @@ class PromptOptimizer:
             )
             bred_ideas = bred_ideas[:num_to_breed]
         initial_new_prompt_configs = await asyncio.gather(
-            *[self._prompt_idea_to_prompt_config(idea) for idea in bred_ideas],
+            *[self._prompt_idea_to_bot_config(idea) for idea in bred_ideas],
             return_exceptions=True,
         )
         new_prompt_configs: list[BotConfig] = [
@@ -423,7 +420,7 @@ class PromptOptimizer:
         )
         return prompt
 
-    async def _prompt_idea_to_prompt_config(
+    async def _prompt_idea_to_bot_config(
         self, prompt_idea: PromptIdea
     ) -> BotConfig:
         prompt_template = await self._prompt_idea_to_prompt_string(prompt_idea)

@@ -1,6 +1,5 @@
 import copy
 import logging
-from dataclasses import dataclass
 
 from pydantic import BaseModel, field_validator
 
@@ -11,7 +10,10 @@ from forecasting_tools.ai_models.agent_wrappers import (
     AiAgent,
 )
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
+from forecasting_tools.benchmarking.prompt_data_models import (
+    PromptIdea,
+    ResearchTool,
+)
 from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
     ResearchType,
@@ -51,12 +53,6 @@ class BinaryPrediction(BaseModel):
         if value > 0.999:
             raise ValueError("Prediction must be at most 0.999")
         return value
-
-
-@dataclass
-class ResearchTool:
-    tool: AgentTool
-    max_calls: int | None
 
 
 class ToolUsageTracker:

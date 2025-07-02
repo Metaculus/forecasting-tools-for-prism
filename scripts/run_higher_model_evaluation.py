@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
+from forecasting_tools.benchmarking.bot_evaluator import BotEvaluator
 from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
     ResearchType,
@@ -50,7 +50,7 @@ async def run_higher_model_evaluation() -> None:
 
     # --- Run the evaluation ---
     for forecast_llm in forecast_llms:
-        evaluator = PromptEvaluator(
+        evaluator = BotEvaluator(
             input_questions=evaluation_questions,
             research_type=ResearchType.ASK_NEWS_SUMMARIES,
             concurrent_evaluation_batch_size=questions_batch_size,
@@ -67,7 +67,7 @@ async def run_higher_model_evaluation() -> None:
         )
         for evaluated_prompt in evaluation_result.evaluated_prompts:
             logger.info(
-                f"Name: {evaluated_prompt.bot_config.original_reasoning_idea.short_name}"
+                f"Name: {evaluated_prompt.bot_config.reasoning_idea.short_name}"
             )
             logger.info(f"Config: {evaluated_prompt.bot_config}")
             logger.info(f"Code: {evaluated_prompt.benchmark.code}")

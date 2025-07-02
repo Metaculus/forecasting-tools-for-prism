@@ -2,8 +2,8 @@ import asyncio
 import logging
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
-from forecasting_tools.benchmarking.prompt_optimizer import PromptOptimizer
+from forecasting_tools.benchmarking.bot_evaluator import BotEvaluator
+from forecasting_tools.benchmarking.bot_optimizer import BotOptimizer
 from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
     ResearchType,
@@ -35,13 +35,13 @@ async def run_optimizer() -> None:
     for run in range(start_fresh_optimization_runs):
         logger.info(f"Run {run + 1} of {start_fresh_optimization_runs}")
         logger.info(f"Loaded {len(evaluation_questions)} evaluation questions")
-        evaluator = PromptEvaluator(
+        evaluator = BotEvaluator(
             input_questions=evaluation_questions,
             research_type=ResearchType.ASK_NEWS_SUMMARIES,
             concurrent_evaluation_batch_size=questions_batch_size,
             file_or_folder_to_save_benchmarks="logs/forecasts/benchmarks/",
         )
-        optimizer = PromptOptimizer(
+        optimizer = BotOptimizer(
             iterations=num_iterations_per_run,
             forecast_llm=forecast_llm,
             ideation_llm_name=ideation_llm,
@@ -51,7 +51,7 @@ async def run_optimizer() -> None:
         evaluated_prompts = evaluation_result.evaluated_prompts
         for evaluated_prompt in evaluated_prompts:
             logger.info(
-                f"Name: {evaluated_prompt.bot_config.original_reasoning_idea.short_name}"
+                f"Name: {evaluated_prompt.bot_config.reasoning_idea.short_name}"
             )
             logger.info(f"Config: {evaluated_prompt.bot_config}")
             logger.info(f"Code: {evaluated_prompt.benchmark.code}")

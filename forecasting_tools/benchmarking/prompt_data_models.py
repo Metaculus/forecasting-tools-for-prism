@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 from pydantic import BaseModel
@@ -25,7 +27,7 @@ class BotConfig:
     research_tools: list[ResearchTool]
     reasoning_llm: GeneralLlm | str
     research_llm: GeneralLlm | str
-    original_reasoning_idea: PromptIdea
+    reasoning_idea: PromptIdea
     original_research_idea: PromptIdea
     research_reports_per_question: int = 1
     predictions_per_research_report: int = 1

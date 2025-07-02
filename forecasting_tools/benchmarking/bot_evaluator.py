@@ -23,7 +23,7 @@ from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 logger = logging.getLogger(__name__)
 
 
-class PromptEvaluator:
+class BotEvaluator:
     def __init__(
         self,
         input_questions: list[QuestionPlusResearch] | list[MetaculusQuestion],
@@ -69,7 +69,7 @@ class PromptEvaluator:
         evaluated_prompts: list[EvaluatedPrompt] = []
         for config, benchmark in zip(configurations, benchmarks):
             benchmark.forecast_bot_class_name = (
-                config.original_reasoning_idea.short_name.replace(" ", "_")
+                config.reasoning_idea.short_name.replace(" ", "_")
             )
             if len(benchmark.forecast_reports) > 0:
                 evaluated_prompts.append(
@@ -77,7 +77,7 @@ class PromptEvaluator:
                 )
             else:
                 logger.error(
-                    f"Not including {config.original_reasoning_idea.short_name} in evaluation report because it has no forecast reports"
+                    f"Not including {config.reasoning_idea.short_name} in evaluation report because it has no forecast reports"
                 )
         return OptimizationResult(evaluated_prompts=evaluated_prompts)
 
@@ -90,12 +90,12 @@ class PromptEvaluator:
                 raise NotImplementedError(
                     "Currently only supports one research report per question"
                 )
-            custom_class_name = (
-                config.original_reasoning_idea.short_name.replace(" ", "_")
+            custom_class_name = config.reasoning_idea.short_name.replace(
+                " ", "_"
             )
             CustomBotClass = type(custom_class_name, (CustomizableBot,), {})
             bot = CustomBotClass(
-                originating_idea=config.original_reasoning_idea,
+                originating_idea=config.reasoning_idea,
                 reasoning_prompt=config.reasoning_prompt_template,
                 research_prompt=config.research_prompt_template,
                 research_tools=config.research_tools,
@@ -134,7 +134,7 @@ class PromptEvaluator:
             control_group_config = BotConfig(
                 reasoning_prompt_template=ControlPrompt.get_prompt(),
                 reasoning_llm=forecast_llm,
-                original_reasoning_idea=PromptIdea(
+                reasoning_idea=PromptIdea(
                     short_name=f"Control Group v{ControlPrompt.version()}",
                     idea="The control group is a group of questions that are not optimized for the prompt. It is used to evaluate the performance of the optimized prompt.",
                 ),
@@ -150,7 +150,7 @@ class PromptEvaluator:
             best_prompt_config = BotConfig(
                 reasoning_prompt_template=prompt,
                 reasoning_llm=forecast_llm,
-                original_reasoning_idea=PromptIdea(
+                reasoning_idea=PromptIdea(
                     short_name=f"{benchmark.forecast_bot_class_name}",
                     idea=f"Evaluate the prompt from {benchmark.forecast_bot_class_name} (originally found from a different dataset/origin) with model {forecast_llm.model} and {len(self.evaluation_questions)} questions",
                 ),

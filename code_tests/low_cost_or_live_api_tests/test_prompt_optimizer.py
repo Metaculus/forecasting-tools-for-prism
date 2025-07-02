@@ -5,8 +5,8 @@ from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
-from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
-from forecasting_tools.benchmarking.prompt_optimizer import PromptOptimizer
+from forecasting_tools.benchmarking.bot_evaluator import BotEvaluator
+from forecasting_tools.benchmarking.bot_optimizer import BotOptimizer
 from forecasting_tools.benchmarking.question_plus_research import (
     QuestionPlusResearch,
     ResearchItem,
@@ -25,13 +25,13 @@ async def test_prompt_optimizer() -> None:
             )
         ],
     )
-    evaluator = PromptEvaluator(
+    evaluator = BotEvaluator(
         input_questions=[research_snapshot],
         research_type=ResearchType.ASK_NEWS_SUMMARIES,
         concurrent_evaluation_batch_size=10,
         file_or_folder_to_save_benchmarks=None,
     )
-    prompt_optimizer = PromptOptimizer(
+    prompt_optimizer = BotOptimizer(
         evaluator=evaluator,
         iterations=2,
         forecast_llm=GeneralLlm(model="gpt-4.1-nano"),

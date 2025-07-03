@@ -17,5 +17,5 @@ def setup_logging() -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def wrap_all_tests_in_trace() -> Generator[None, None, None]:
-    with general_trace_or_span("Running test suite"):
+    with general_trace_or_span("Running tests"):
         yield  # Run all tests

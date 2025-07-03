@@ -11,7 +11,6 @@ from forecasting_tools.ai_models.agent_wrappers import (
     AgentRunner,
     AgentSdkLlm,
     AiAgent,
-    general_span,
     general_trace_or_span,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
@@ -109,25 +108,26 @@ class PromptOptimizer:
             )
 
     async def create_optimized_prompt(self) -> OptimizationRun:
-        with general_span("Prompt Optimizer"):
+        with general_trace_or_span("Prompt Optimizer"):
             return await self._create_optimized_prompt()
 
     async def _create_optimized_prompt(self) -> OptimizationRun:
-        prompts_still_needed = self.initial_prompt_population_size - 1
-        starting_prompts: list[ImplementedPrompt] = []
-        if prompts_still_needed > 0:
-            additional_initial_prompts = await self._mutate_prompt(
-                ImplementedPrompt(
-                    text=self.initial_prompt,
-                    idea=PromptIdea(
-                        short_name="Initial Seed",
-                        full_text="The user-provided initial prompt",
+        with general_trace_or_span("Initial Population Generation"):
+            prompts_still_needed = self.initial_prompt_population_size - 1
+            starting_prompts: list[ImplementedPrompt] = []
+            if prompts_still_needed > 0:
+                additional_initial_prompts = await self._mutate_prompt(
+                    ImplementedPrompt(
+                        text=self.initial_prompt,
+                        idea=PromptIdea(
+                            short_name="Initial Seed",
+                            full_text="The user-provided initial prompt",
+                        ),
+                        originating_ideas=[],
                     ),
-                    originating_ideas=[],
-                ),
-                prompts_still_needed,
-            )
-            starting_prompts = additional_initial_prompts
+                    prompts_still_needed,
+                )
+                starting_prompts = additional_initial_prompts
 
         all_evaluated_prompts: list[ScoredPrompt] = []
         survivors: list[ScoredPrompt] = []

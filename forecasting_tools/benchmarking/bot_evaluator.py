@@ -99,7 +99,7 @@ class BotEvaluator:
                 reasoning_prompt=config.reasoning_prompt_template,
                 research_prompt=config.research_prompt_template,
                 research_tools=config.research_tools,
-                cached_research=self.research_snapshots,
+                cached_research=self.research_snapshots or None,
                 research_type=self.research_type,
                 research_reports_per_question=config.research_reports_per_question,
                 predictions_per_research_report=config.predictions_per_research_report,

@@ -150,7 +150,7 @@ class BotOptimizer:
             return prompt_scores
 
         optimizer = PromptOptimizer(
-            initial_prompt=[ControlPrompt.get_combined_prompt()],
+            initial_prompt=ControlPrompt.get_combined_prompt(),
             iterations=num_iterations_per_run,
             ideation_llm_name=ideation_llm,
             prompts_to_scores_func=evaluate_combined_research_and_reasoning_prompts,

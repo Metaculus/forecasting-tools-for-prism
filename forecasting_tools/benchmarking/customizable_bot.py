@@ -141,7 +141,7 @@ class CustomizableBot(ForecastBot):
         self.research_type = research_type
         self.originating_idea = originating_idea  # As of May 26, 2025 This parameter is logged in the config for the bot, even if not used here.
 
-        if cached_research is not None:
+        if cached_research:
             unique_questions = list(
                 set(
                     [

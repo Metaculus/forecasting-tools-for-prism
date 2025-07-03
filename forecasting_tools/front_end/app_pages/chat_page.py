@@ -6,7 +6,6 @@ import time
 from datetime import datetime
 
 import streamlit as st
-from agents import Agent, Runner, Tool, trace
 from openai.types.responses import ResponseTextDeltaEvent
 from pydantic import BaseModel, Field
 
@@ -39,8 +38,11 @@ from forecasting_tools.agents_and_tools.question_generators.topic_generator impo
     TopicGenerator,
 )
 from forecasting_tools.ai_models.agent_wrappers import (
+    AgentRunner,
     AgentSdkLlm,
     AgentTool,
+    AiAgent,
+    agent_trace,
     event_to_tool_message,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
@@ -129,7 +131,7 @@ class ChatPage(AppPage):
         st.session_state["model_choice"] = model_choice
 
     @classmethod
-    def get_chat_tools(cls) -> list[Tool]:
+    def get_chat_tools(cls) -> list[AgentTool]:
         return [
             TopicGenerator.find_random_headlines_tool,
             QuestionDecomposer.decompose_into_questions_tool,
@@ -148,11 +150,11 @@ class ChatPage(AppPage):
         ]
 
     @classmethod
-    def display_tools(cls) -> list[Tool]:
-        default_tools: list[Tool] = cls.get_chat_tools()
+    def display_tools(cls) -> list[AgentTool]:
+        default_tools: list[AgentTool] = cls.get_chat_tools()
         bot_options = get_all_important_bot_classes()
 
-        active_tools: list[Tool] = []
+        active_tools: list[AgentTool] = []
         with st.sidebar.expander("🛠️ Select Tools"):
             bot_choice = st.selectbox(
                 "Select a bot for forecast_question_tool (Main Bot is best)",
@@ -403,7 +405,7 @@ class ChatPage(AppPage):
 
     @classmethod
     async def process_prompt(
-        cls, prompt: str | None, active_tools: list[Tool]
+        cls, prompt: str | None, active_tools: list[AgentTool]
     ) -> None:
         if prompt:
             st.session_state.messages.append(
@@ -424,7 +426,7 @@ class ChatPage(AppPage):
     async def generate_response(
         cls,
         prompt_input: str | None,
-        active_tools: list[Tool],
+        active_tools: list[AgentTool],
     ) -> None:
         if not prompt_input:
             return
@@ -453,16 +455,16 @@ class ChatPage(AppPage):
 
         model_choice = st.session_state["model_choice"]
 
-        agent = Agent(
-            name="Assistant",
+        agent = AiAgent(
+            name="Chat App Agent",
             instructions=instructions,
             model=AgentSdkLlm(model=model_choice),
-            tools=active_tools,
+            tools=active_tools,  # type: ignore
             handoffs=[],
         )
 
-        with trace("Chat App") as chat_trace:
-            result = Runner.run_streamed(
+        with agent_trace("Chat App") as chat_trace:
+            result = AgentRunner.run_streamed(
                 agent, st.session_state.messages, max_turns=20
             )
             streamed_text = ""

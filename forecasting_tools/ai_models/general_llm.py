@@ -287,7 +287,7 @@ class GeneralLlm(
                 )
 
             await asyncio.sleep(
-                0.0001
+                0.00001
             )  # For whatever reason, you need to await a coroutine to get the litellm cost call back to work
 
             response = TextTokenCostResponse(

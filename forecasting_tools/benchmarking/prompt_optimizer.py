@@ -47,6 +47,22 @@ class OptimizationRun(BaseModel):
 
 
 class PromptOptimizer:
+    """A genetic algorithm-inspired prompt optimizer that evolves prompts through mutation and selection.
+
+    Args:
+        initial_prompts: List of starting prompt strings to optimize from
+        iterations: Number of optimization iterations to run
+        ideation_llm_name: Name of the LLM model to use for generating prompt variations
+        prompts_to_scores_func: Function that takes a list of prompts and returns a list of scores
+        prompt_purpose_explanation: e.g. "You are making a prompt for an AI to forecast binary questions about future events. You want to optimize ..."
+        prompt_requirements_explanation: e.g. "The prompt should 1) ask an AI to forecast a binary question, 2) require a final binary float as the output..."
+        template_variables_explanation: e.g. "The prompt should include the following variables: {{question_text}}, {{background_info}}, {{resolution_criteria}}, {{fine_print}}, {{today}}, {{research}}. Always include at least one of each of these and only include research once"
+        format_scores_func: Function that takes a list of scored prompts and returns a string of the scores and metadata. This is inserted into the prompt during prompt ideation.
+        initial_prompt_population_size: Target size of the initial prompt population
+        survivors_per_iteration: Number of best prompts to keep after each iteration
+        mutated_prompts_per_survivor: Number of mutated prompts to generate from each survivor
+        breeded_prompts_per_iteration: Number of bred prompts to generate per iteration
+    """
 
     def __init__(
         self,
@@ -55,12 +71,13 @@ class PromptOptimizer:
         ideation_llm_name: str,
         prompts_to_scores_func: Callable[
             [list[str]], Awaitable[list[PromptScore]]
-        ],  # Function that takes a list of prompts and returns a list of scores
-        prompt_purpose_explanation: str,  # e.g. "You are making a prompt for an AI to forecast binary questions about future events. You want to optimize ..."
-        prompt_requirements_explanation: str,  # e.g. "The prompt should ask an AI to forecast a binary question and require a final binary float as the output."
+        ],
+        prompt_purpose_explanation: str,
+        prompt_requirements_explanation: str,
+        template_variables_explanation: str,
         format_scores_func: (
             Callable[[ScoredPrompt], Awaitable[str]] | None
-        ) = None,  # Function that takes a list of scored prompts and returns a string of the scores and metadata to review in each iteration
+        ) = None,
         initial_prompt_population_size: int = 25,
         survivors_per_iteration: int = 5,
         mutated_prompts_per_survivor: int = 4,
@@ -73,6 +90,7 @@ class PromptOptimizer:
         self.format_scores_func = format_scores_func
         self.prompt_purpose_explanation = prompt_purpose_explanation
         self.prompt_requirements_explanation = prompt_requirements_explanation
+        self.template_variables_explanation = template_variables_explanation
         self.initial_prompt_population_size = initial_prompt_population_size
         self.survivors_per_iteration = survivors_per_iteration
         self.mutated_prompts_per_survivor = mutated_prompts_per_survivor
@@ -100,7 +118,7 @@ class PromptOptimizer:
                 text=prompt,
                 idea=PromptIdea(
                     short_name=f"Initial Seed {i}",
-                    idea=f"The user-provided initial prompt {i}.",
+                    main_text=f"The user-provided initial prompt {i}.",
                 ),
                 iteration_number=0,
                 originating_ideas=[],
@@ -118,20 +136,22 @@ class PromptOptimizer:
 
         all_evaluated_prompts: list[ScoredPrompt] = []
         survivors: list[ScoredPrompt] = []
-        newborn_prompts: list[ImplementedPrompt] = initial_prompts.copy()
+        offspring_prompts: list[ImplementedPrompt] = initial_prompts.copy()
 
         for iteration_num in range(self.iterations):
             logger.info(
-                f"Starting iteration {iteration_num + 1}/{self.iterations} - Current population size: {len(newborn_prompts)}"
+                f"Starting iteration {iteration_num + 1}/{self.iterations} - Current population size: {len(offspring_prompts)}"
             )
 
-            adult_prompts = await self._evaluate_new_members(newborn_prompts)
-            all_evaluated_prompts.extend(adult_prompts)
+            evaluated_prompts = await self._evaluate_new_members(
+                offspring_prompts
+            )
+            all_evaluated_prompts.extend(evaluated_prompts)
 
-            updated_population = survivors + adult_prompts
+            updated_population = survivors + evaluated_prompts
             survivors = await self._kill_the_weak(updated_population)
 
-            newborn_prompts = await self._birth_new_prompts(survivors)
+            offspring_prompts = await self._generate_new_prompts(survivors)
 
             self._log_duplicate_prompts(all_evaluated_prompts)
 
@@ -151,7 +171,7 @@ class PromptOptimizer:
         )
         return current_population[: self.survivors_per_iteration]
 
-    async def _birth_new_prompts(
+    async def _generate_new_prompts(
         self, surviving_population: list[ScoredPrompt]
     ) -> list[ImplementedPrompt]:
         mutated_prompts: list[ImplementedPrompt] = []
@@ -238,7 +258,7 @@ class PromptOptimizer:
 
                 # Original Prompt Idea Details
                 Name: {prompt.idea.short_name}
-                Core Idea: {prompt.idea.idea}
+                Core Idea: {prompt.idea.main_text}
 
                 Original Prompt Template (for context only, do not reproduce it in your output):
                 ```
@@ -296,12 +316,149 @@ class PromptOptimizer:
                 f"Need at least 2 parent prompts, got {len(parent_scored_prompts)}."
             )
 
-        raise NotImplementedError("Not implemented")
+        parent_details_list = []
+        for i, scored_prompt in enumerate(parent_scored_prompts):
+            idea = scored_prompt.prompt.idea
+            parent_details_list.append(
+                clean_indents(
+                    f"""
+                    Parent Prompt {i + 1} (Original Name: '{idea.short_name}'):
+                    Core Idea: {idea.main_text}
+                    Full Template (for context):
+                    ```
+                    {scored_prompt.prompt.text}
+                    ```
+                    """
+                )
+            )
+        parent_details_str = "\n".join(parent_details_list)
+
+        agent_breed_ideas = AiAgent(
+            name="Prompt Breeder Ideator",
+            model=AgentSdkLlm(self.ideation_llm_name),
+            instructions=clean_indents(
+                f"""
+                # Instructions
+                You are an expert prompt engineer. Your task is to create {num_to_breed} new, high-quality forecasting PROMPT IDEAS
+                by breeding (intelligently combining) ideas from several successful parent prompts.
+                These prompts are used by an AI to forecast binary questions.
+
+                Please generate exactly {num_to_breed} new, distinct prompt IDEAS.
+                Each new idea should represent a synergistic combination of the best elements from TWO OR MORE parent prompts.
+                Do not simply copy one parent or make only trivial combinations (e.g., just taking one sentence from one and one from another).
+                Aim for novel, potent combinations that are conceptually new prompt approaches derived from the parents.
+                Identify strengths in different parents and try to combine them. If parents have weaknesses, try to avoid them in the bred versions.
+
+                Each new prompt idea must be a concept for a new, complete prompt.
+
+                # Purpose of Prompt
+                {self.prompt_purpose_explanation}
+
+                # Prompt Requirements
+                The final prompt (i.e. not the ideas you will generate) will have the below requirements. Another agent will implement these requirements.
+
+                {self.prompt_requirements_explanation}
+
+                # Parent Prompts
+                {parent_details_str}
+
+                # Format
+                **Bred Idea Title 1**
+                New idea for bred prompt 1, explaining how it combines elements from parents in detail.
+
+                **Bred Idea Title 2**
+                New idea for bred prompt 2, explaining how it combines elements from parents in detail.
+                ...
+                (up to {num_to_breed} ideas)
+                """
+            ),
+            tools=[
+                perplexity_pro_search
+            ],  # Allow research for inspiration if needed
+        )
+
+        breeding_agent_task = (
+            f"Generate {num_to_breed} new prompt ideas by breeding from the provided {len(parent_scored_prompts)} parent prompts. "
+            f"Focus on synergistic combinations."
+        )
+        output = await AgentRunner.run(agent_breed_ideas, breeding_agent_task)
+
+        bred_ideas = await structure_output(
+            output.final_output, list[PromptIdea]
+        )
+
+        if len(bred_ideas) != num_to_breed:
+            logger.warning(
+                f"Requested {num_to_breed} bred ideas, but got {len(bred_ideas)}. Returning {bred_ideas[:num_to_breed]}"
+            )
+            bred_ideas = bred_ideas[:num_to_breed]
+        new_prompts = await self._implement_prompt_ideas(bred_ideas)
+        logger.info(
+            f"Successfully created {len(new_prompts)} implemented prompts from bred ideas."
+        )
+        return new_prompts
 
     async def _implement_prompt_ideas(
         self, prompt_ideas: list[PromptIdea]
     ) -> list[ImplementedPrompt]:
-        raise NotImplementedError("Not implemented")
+        tasks = [self._implement_prompt_idea(idea) for idea in prompt_ideas]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        implemented_prompts = [
+            result
+            for result in results
+            if not isinstance(result, BaseException)
+        ]
+        errors = [
+            result for result in results if isinstance(result, BaseException)
+        ]
+        for error in errors:
+            logger.error(f"Error implementing prompt idea: {error}")
+
+        return implemented_prompts
+
+    async def _implement_prompt_idea(
+        self, prompt_idea: PromptIdea
+    ) -> ImplementedPrompt:
+        agent = AiAgent(
+            name="Prompt Implementor",
+            model=AgentSdkLlm(self.ideation_llm_name),
+            instructions=clean_indents(
+                f"""
+                # Instructions
+                You need to implement a prompt (that is a template string) based on the below idea:
+                Name: {prompt_idea.short_name}
+                Idea: {prompt_idea.main_text}
+
+                # Purpose of Prompt
+                {self.prompt_purpose_explanation}
+
+                # Prompt Requirements
+                The final prompt (i.e. not the ideas you will generate) will have the below requirements. Another agent will implement these requirements.
+
+                {self.prompt_requirements_explanation}
+
+                # Template Variables
+                This is a template prompt. Below are information about the variables you have access to:
+                {self.template_variables_explanation}
+
+                # Additional Notes
+                - Make sure to put braces around the variables in the prompt (like you would a normal fstring or template string), and don't add any additional variables not listed.
+                - Return the prompt and nothing but the prompt. The prompt will be run as is.
+                - Ensure the prompt is complete, well-structured, and ready to use based on the idea provided.
+                - Do not add any explanatory text before or after the prompt itself. Do not add any other text.
+                """
+            ),
+        )
+        output = await AgentRunner.run(
+            agent,
+            f"Please implement a prompt for the idea: '{prompt_idea.short_name}'. Return only the prompt text itself.",
+        )
+        prompt = output.final_output
+
+        logger.info(
+            f"Generated prompt string for idea '{prompt_idea.short_name}': {prompt}"
+        )
+        return prompt
 
     def _log_duplicate_prompts(self, prompts: list[ScoredPrompt]) -> None:
         for prompt in prompts:

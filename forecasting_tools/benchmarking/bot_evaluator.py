@@ -136,7 +136,7 @@ class BotEvaluator:
                 reasoning_llm=forecast_llm,
                 reasoning_idea=PromptIdea(
                     short_name=f"Control Group v{ControlPrompt.version()}",
-                    idea="The control group is a group of questions that are not optimized for the prompt. It is used to evaluate the performance of the optimized prompt.",
+                    main_text="The control group is a group of questions that are not optimized for the prompt. It is used to evaluate the performance of the optimized prompt.",
                 ),
                 predictions_per_research_report=num_predictions_per_research_report,
                 research_reports_per_question=research_reports_per_question,
@@ -152,7 +152,7 @@ class BotEvaluator:
                 reasoning_llm=forecast_llm,
                 reasoning_idea=PromptIdea(
                     short_name=f"{benchmark.forecast_bot_class_name}",
-                    idea=f"Evaluate the prompt from {benchmark.forecast_bot_class_name} (originally found from a different dataset/origin) with model {forecast_llm.model} and {len(self.evaluation_questions)} questions",
+                    main_text=f"Evaluate the prompt from {benchmark.forecast_bot_class_name} (originally found from a different dataset/origin) with model {forecast_llm.model} and {len(self.evaluation_questions)} questions",
                 ),
             )
             configs.append(best_prompt_config)

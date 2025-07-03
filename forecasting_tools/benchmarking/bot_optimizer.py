@@ -55,6 +55,46 @@ logger = logging.getLogger(__name__)
 
 # Purpose: "You are making a prompt for an AI to forecast binary questions about future events on prediction markets/aggregators. This needs to optimize forecasting accuracy as measured by log/brier scores."
 
+# {{question_text}} - One sentence question text
+# {{background_info}} - 1-2 paragraphs of background information
+# {{resolution_criteria}} - 1-2 paragraphs of resolution criteria
+# {{fine_print}} - 1-2 paragraphs of fine print
+# {{today}} - The current date in the format YYYY-MM-DD
+# {{research}} - kill contain 4-20 paragraphs of research
+# .
+# Mention which ones to use when
+
+
+# missing_vars = [
+#     var
+#     for var in [
+#         "{question_text}",
+#         "{background_info}",
+#         "{resolution_criteria}",
+#         "{fine_print}",
+#         "{today}",
+#         "{research}",
+#     ]
+#     if var not in prompt
+# ]
+# if missing_vars:
+#     logger.warning(
+#         f"Generated prompt for '{prompt_idea.short_name}' is missing template variables: {missing_vars}. Prompt: {prompt}"
+#     )
+
+# try:
+#     prompt.format(
+#         question_text="test",
+#         background_info="test",
+#         resolution_criteria="test",
+#         fine_print="test",
+#         today="test",
+#         research="test",
+#     )
+# except Exception as e:
+#     logger.error(f"Failed to fill in prompt: {e}")
+#     raise ValueError(f"Failed to fill-in-prompt test: {e}")
+
 
 class BotOptimizer:
 
@@ -95,7 +135,7 @@ class BotOptimizer:
             reasoning_llm=self.forecast_llm,
             reasoning_idea=PromptIdea(
                 short_name="Initial Seed",
-                idea="The user-provided initial prompt.",
+                main_text="The user-provided initial prompt.",
             ),
         )
 
@@ -232,7 +272,7 @@ class BotOptimizer:
 
                 # Original Prompt Idea Details
                 Name: {parent_prompt_config.reasoning_idea.short_name}
-                Core Idea: {parent_prompt_config.reasoning_idea.idea}
+                Core Idea: {parent_prompt_config.reasoning_idea.main_text}
 
                 Original Prompt Template (for context only, do not reproduce it in your output):
                 ```
@@ -304,7 +344,7 @@ class BotOptimizer:
                 clean_indents(
                     f"""
                     Parent Prompt {i + 1} (Original Name: '{pc.reasoning_idea.short_name}'):
-                    Core Idea: {pc.reasoning_idea.idea}
+                    Core Idea: {pc.reasoning_idea.main_text}
                     Full Template (for context):
                     ```
                     {pc.reasoning_prompt_template}
@@ -394,7 +434,7 @@ class BotOptimizer:
 
                 The prompt should implement the below idea:
                 Name: {prompt_idea.short_name}
-                Idea: {prompt_idea.idea}
+                Idea: {prompt_idea.main_text}
 
                 This is a template prompt, and so you should add the following variables to the prompt:
                 {{question_text}} - One sentence question text

@@ -11,7 +11,7 @@ from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
 
 class PromptIdea(BaseModel):
     short_name: str
-    idea: str
+    main_text: str
 
 
 @dataclass

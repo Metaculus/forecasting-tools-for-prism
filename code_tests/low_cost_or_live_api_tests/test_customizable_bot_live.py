@@ -27,7 +27,7 @@ async def test_customizable_bot_runs() -> None:
         llms={"default": "gpt-4.1-mini", "researcher": "gpt-4.1-mini"},
         originating_idea=PromptIdea(
             short_name="Test idea",
-            main_text="Test idea process",
+            full_text="Test idea process",
         ),
     )
 
@@ -57,7 +57,7 @@ async def test_customizable_bot_respects_max_tool_calls_limit() -> None:
         llms={"default": "gpt-4.1-mini", "researcher": "gpt-4.1-mini"},
         originating_idea=PromptIdea(
             short_name="Test idea",
-            main_text="Test idea process",
+            full_text="Test idea process",
         ),
     )
 

@@ -80,7 +80,7 @@ def customizable_bot(
         llms={"default": mock_llm, "researcher": "gpt-4o-mini"},
         originating_idea=PromptIdea(
             short_name="Test idea",
-            main_text="Test idea process",
+            full_text="Test idea process",
         ),
     )
 
@@ -145,7 +145,7 @@ async def test_customizable_bot_run_research_duplicate_questions_in_snapshots(
             llms={"default": mock_llm},
             originating_idea=PromptIdea(
                 short_name="Test idea",
-                main_text="Test idea process",
+                full_text="Test idea process",
             ),
         )
 
@@ -163,7 +163,7 @@ async def test_customizable_bot_raises_error_when_no_researcher_llm_configured(
         llms={"default": mock_llm},
         originating_idea=PromptIdea(
             short_name="Test idea",
-            main_text="Test idea process",
+            full_text="Test idea process",
         ),
     )
 

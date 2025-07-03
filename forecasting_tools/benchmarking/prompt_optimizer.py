@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable
+from typing import Any, Callable, Coroutine
 
 from pydantic import BaseModel
 
@@ -39,11 +39,11 @@ class ScoredPrompt(BaseModel):
 
 
 class OptimizationRun(BaseModel):
-    implemented_prompts: list[ScoredPrompt]
+    scored_prompts: list[ScoredPrompt]
 
     @property
     def best_prompt(self) -> ScoredPrompt:
-        return max(self.implemented_prompts, key=lambda x: x.score.value)
+        return max(self.scored_prompts, key=lambda x: x.score.value)
 
 
 class PromptOptimizer:
@@ -53,11 +53,12 @@ class PromptOptimizer:
         initial_prompts: List of starting prompt strings to optimize from
         iterations: Number of optimization iterations to run
         ideation_llm_name: Name of the LLM model to use for generating prompt variations
-        prompts_to_scores_func: Function that takes a list of prompts and returns a list of scores
+        prompts_to_scores_func: async function that takes a list of prompts and returns a list of scores
         prompt_purpose_explanation: e.g. "You are making a prompt for an AI to forecast binary questions about future events. You want to optimize ..."
         prompt_requirements_explanation: e.g. "The prompt should 1) ask an AI to forecast a binary question, 2) require a final binary float as the output..."
         template_variables_explanation: e.g. "The prompt should include the following variables: {{question_text}}, {{background_info}}, {{resolution_criteria}}, {{fine_print}}, {{today}}, {{research}}. Always include at least one of each of these and only include research once"
-        format_scores_func: Function that takes a list of scored prompts and returns a string of the scores and metadata. This is inserted into the prompt during prompt ideation.
+        ideation_considerations: e.g. "As you develop the prompt consider: - Research formats and length (consider all varieties) - Research sources (consider all varieties) - Reasoning formats and length (consider all varieties). Please respect these limits in tools use: x,y,z ..."
+        format_scores_func: Async function that takes a list of scored prompts and returns a string of the scores and metadata. This is inserted into the prompt during prompt ideation.
         initial_prompt_population_size: Target size of the initial prompt population
         survivors_per_iteration: Number of best prompts to keep after each iteration
         mutated_prompts_per_survivor: Number of mutated prompts to generate from each survivor
@@ -70,14 +71,15 @@ class PromptOptimizer:
         iterations: int,
         ideation_llm_name: str,
         prompts_to_scores_func: Callable[
-            [list[str]], Awaitable[list[PromptScore]]
+            [list[ImplementedPrompt]], Coroutine[Any, Any, list[PromptScore]]
         ],
         prompt_purpose_explanation: str,
         prompt_requirements_explanation: str,
         template_variables_explanation: str,
+        ideation_considerations: str,
         format_scores_func: (
-            Callable[[ScoredPrompt], Awaitable[str]] | None
-        ) = None,
+            Callable[[ScoredPrompt], Coroutine[Any, Any, str]] | None
+        ),
         initial_prompt_population_size: int = 25,
         survivors_per_iteration: int = 5,
         mutated_prompts_per_survivor: int = 4,
@@ -91,6 +93,7 @@ class PromptOptimizer:
         self.prompt_purpose_explanation = prompt_purpose_explanation
         self.prompt_requirements_explanation = prompt_requirements_explanation
         self.template_variables_explanation = template_variables_explanation
+        self.ideation_considerations = ideation_considerations
         self.initial_prompt_population_size = initial_prompt_population_size
         self.survivors_per_iteration = survivors_per_iteration
         self.mutated_prompts_per_survivor = mutated_prompts_per_survivor
@@ -118,7 +121,7 @@ class PromptOptimizer:
                 text=prompt,
                 idea=PromptIdea(
                     short_name=f"Initial Seed {i}",
-                    main_text=f"The user-provided initial prompt {i}.",
+                    full_text=f"The user-provided initial prompt {i}.",
                 ),
                 iteration_number=0,
                 originating_ideas=[],
@@ -155,7 +158,7 @@ class PromptOptimizer:
 
             self._log_duplicate_prompts(all_evaluated_prompts)
 
-        return OptimizationRun(implemented_prompts=all_evaluated_prompts)
+        return OptimizationRun(scored_prompts=all_evaluated_prompts)
 
     async def _kill_the_weak(
         self, current_population: list[ScoredPrompt]
@@ -205,7 +208,7 @@ class PromptOptimizer:
     async def _evaluate_new_members(
         self, prompts: list[ImplementedPrompt]
     ) -> list[ScoredPrompt]:
-        scores = await self.prompt_to_score_func([p.text for p in prompts])
+        scores = await self.prompt_to_score_func(prompts)
         return [
             ScoredPrompt(prompt=p, score=s) for p, s in zip(prompts, scores)
         ]
@@ -258,7 +261,7 @@ class PromptOptimizer:
 
                 # Original Prompt Idea Details
                 Name: {prompt.idea.short_name}
-                Core Idea: {prompt.idea.main_text}
+                Core Idea: {prompt.idea.full_text}
 
                 Original Prompt Template (for context only, do not reproduce it in your output):
                 ```
@@ -267,6 +270,9 @@ class PromptOptimizer:
 
                 # Scores from Original Prompt:
                 {scores_str}
+
+                # Ideation Considerations
+                {self.ideation_considerations}
 
                 # Format
                 **Mutated Idea Title 1**
@@ -323,7 +329,7 @@ class PromptOptimizer:
                 clean_indents(
                     f"""
                     Parent Prompt {i + 1} (Original Name: '{idea.short_name}'):
-                    Core Idea: {idea.main_text}
+                    Core Idea: {idea.full_text}
                     Full Template (for context):
                     ```
                     {scored_prompt.prompt.text}
@@ -358,6 +364,9 @@ class PromptOptimizer:
                 The final prompt (i.e. not the ideas you will generate) will have the below requirements. Another agent will implement these requirements.
 
                 {self.prompt_requirements_explanation}
+
+                # Ideation Considerations
+                {self.ideation_considerations}
 
                 # Parent Prompts
                 {parent_details_str}
@@ -425,16 +434,14 @@ class PromptOptimizer:
             instructions=clean_indents(
                 f"""
                 # Instructions
-                You need to implement a prompt (that is a template string) based on the below idea:
+                You are an expert prompt engineer. Your task is to implement a prompt based on the below idea:
                 Name: {prompt_idea.short_name}
-                Idea: {prompt_idea.main_text}
+                Idea: {prompt_idea.full_text}
 
                 # Purpose of Prompt
                 {self.prompt_purpose_explanation}
 
                 # Prompt Requirements
-                The final prompt (i.e. not the ideas you will generate) will have the below requirements. Another agent will implement these requirements.
-
                 {self.prompt_requirements_explanation}
 
                 # Template Variables

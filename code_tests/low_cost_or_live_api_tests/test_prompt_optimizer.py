@@ -42,6 +42,8 @@ async def test_prompt_optimizer() -> None:
         breeded_prompts_per_iteration=2,
     )
     with MonetaryCostManager(1):
-        optimized_result = await prompt_optimizer.create_optimized_prompt()
+        optimized_result = (
+            await prompt_optimizer.optimize_both_research_and_reasoning()
+        )
     assert optimized_result is not None
     assert optimized_result.best_prompt_text is not None

@@ -67,7 +67,7 @@ async def run_higher_model_evaluation() -> None:
         )
         for evaluated_prompt in evaluation_result.evaluated_prompts:
             logger.info(
-                f"Name: {evaluated_prompt.bot_config.reasoning_idea.short_name}"
+                f"Name: {evaluated_prompt.bot_config.originating_idea.short_name}"
             )
             logger.info(f"Config: {evaluated_prompt.bot_config}")
             logger.info(f"Code: {evaluated_prompt.benchmark.code}")

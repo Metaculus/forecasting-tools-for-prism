@@ -2,7 +2,6 @@ from math import sqrt
 
 import numpy as np
 from pydantic import BaseModel
-from scipy import stats
 from scipy.stats import norm, shapiro, t
 
 
@@ -238,7 +237,7 @@ class MeanHypothesisCalculator:
         count = observation_stats.count
 
         t_statistic = (average - hypothesis_mean) / std_error
-        cdf = float(stats.t.cdf(t_statistic, df=count - 1))
+        cdf = float(t.cdf(t_statistic, df=count - 1))
         p_value = (
             1 - cdf
         )  # One-tailed p-value for testing if mean is greater than hypothesis (would be just cdf if testing for "less than")
@@ -269,7 +268,7 @@ class MeanHypothesisCalculator:
         t_statistic = (average - hypothesis_mean) / std_error
 
         # Calculate CDF and p-value
-        cdf = float(stats.t.cdf(t_statistic, df=count - 1))
+        cdf = float(t.cdf(t_statistic, df=count - 1))
         p_value = 2 * min(cdf, 1 - cdf)  # Two-tailed p-value
 
         alpha = 1 - confidence

@@ -844,6 +844,9 @@ class ForecastBot(ABC):
             if isinstance(llm, str):
                 return_value = llm
             else:
+                logger.warning(
+                    f"Converting GeneralLlm to string llm name: {llm.model} for purpose: {purpose}. This means any settings for the GeneralLlm will be ignored."
+                )
                 return_value = llm.model
         else:
             raise ValueError(f"Unknown guarantee_type: {guarantee_type}")

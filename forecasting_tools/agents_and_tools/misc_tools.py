@@ -18,8 +18,12 @@ from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
 @agent_tool
 async def get_general_news_with_asknews(topic: str) -> str:
     """
-    Get general news context for a topic using AskNews.
-    This will provide a list of news articles and their summaries
+    Get general news context for a topic using AskNews. Can search international news from other languages.
+    This will provide a list of ~16 news articles and their summaries with fields:
+    - Title
+    - Summary
+    - URL
+    - Date
     """
     # TODO: Insert an if statement that will use Exa summaries rather than AskNews if AskNews keys are not enabled
     return await AskNewsSearcher().get_formatted_news_async(topic)
@@ -52,6 +56,22 @@ async def perplexity_quick_search(query: str) -> str:
     llm = GeneralLlm(
         model="openrouter/perplexity/sonar",
         web_search_options={"search_context_size": "high"},
+        populate_citations=True,
+    )
+    return await llm.invoke(query)
+
+
+@agent_tool
+async def perplexity_quick_search_low_context(query: str) -> str:
+    """
+    Use Perplexity (sonar) to search for information on a topic.
+    This will provide a LLM answer with citations.
+    This is Perplexity's fastest but lowest quality search model.
+    Good for getting a simple and quick answer to a question
+    """
+    llm = GeneralLlm(
+        model="openrouter/perplexity/sonar",
+        web_search_options={"search_context_size": "low"},
         populate_citations=True,
     )
     return await llm.invoke(query)

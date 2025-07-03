@@ -11,7 +11,7 @@ from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
 
 class PromptIdea(BaseModel):
     short_name: str
-    main_text: str
+    full_text: str
 
 
 @dataclass
@@ -27,8 +27,7 @@ class BotConfig:
     research_tools: list[ResearchTool]
     reasoning_llm: GeneralLlm | str
     research_llm: GeneralLlm | str
-    reasoning_idea: PromptIdea
-    original_research_idea: PromptIdea
+    originating_idea: PromptIdea
     research_reports_per_question: int = 1
     predictions_per_research_report: int = 1
 
@@ -48,7 +47,7 @@ class EvaluatedPrompt:
 
 
 @dataclass
-class OptimizationResult:
+class BotEvaluation:
     evaluated_prompts: list[EvaluatedPrompt]
 
     @property

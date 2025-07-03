@@ -95,6 +95,28 @@ class CustomizableBot(ForecastBot):
     See ForecastBot for more details.
     """
 
+    REQUIRED_REASONING_PROMPT_VARIABLES = [
+        "{question_text}",
+        "{resolution_criteria}",
+        "{today}",
+        "{research}",
+        "{background_info}",
+        "{fine_print}",
+    ]
+    REQUIRED_RESEARCH_PROMPT_VARIABLES = [
+        "{question_text}",
+        "{tool_explanation}",
+    ]
+    OPTIONAL_RESEARCH_PROMPT_VARIABLES = [
+        "{resolution_criteria}",
+        "{today}",
+        "{background_info}",
+        "{fine_print}",
+    ]
+    RESEARCH_REASONING_SPLIT_STRING = (
+        "<<<< RESEARCH PROMPT ABOVE, REASONING PROMPT BELOW >>>>"
+    )
+
     def __init__(
         self,
         reasoning_prompt: str,
@@ -144,6 +166,9 @@ class CustomizableBot(ForecastBot):
                 )
 
         self.cached_research = cached_research or []
+
+        self._validate_research_prompt(self.research_prompt)
+        self._validate_reasoning_prompt(self.reasoning_prompt)
 
     @classmethod
     def _llm_config_defaults(cls) -> dict[str, str | GeneralLlm | None]:
@@ -289,3 +314,45 @@ class CustomizableBot(ForecastBot):
         self, question: NumericQuestion, research: str
     ) -> ReasonedPrediction[NumericDistribution]:
         raise NotImplementedError()
+
+    @classmethod
+    def split_combined_research_reasoning_prompt(
+        cls,
+        combined_prompt: str,
+    ) -> tuple[str, str]:
+        """
+        Utility function to split a combined research and reasoning prompt into a separate research prompt and a reasoning prompt.
+        Also validates that the template variables are present in the prompts.
+        """
+        research_prompt, reasoning_prompt = combined_prompt.split(
+            CustomizableBot.RESEARCH_REASONING_SPLIT_STRING
+        )
+        cls._validate_research_prompt(research_prompt)
+        cls._validate_reasoning_prompt(reasoning_prompt)
+        return research_prompt, reasoning_prompt
+
+    @classmethod
+    def _validate_research_prompt(cls, research_prompt: str) -> None:
+        cls._validate_template_variables(
+            research_prompt,
+            required_variables=CustomizableBot.REQUIRED_RESEARCH_PROMPT_VARIABLES,
+        )
+
+    @classmethod
+    def _validate_reasoning_prompt(cls, reasoning_prompt: str) -> None:
+        cls._validate_template_variables(
+            reasoning_prompt,
+            required_variables=CustomizableBot.REQUIRED_REASONING_PROMPT_VARIABLES,
+        )
+
+    @classmethod
+    def _validate_template_variables(
+        cls,
+        prompt: str,
+        required_variables: list[str],
+    ) -> None:
+        missing_vars = [var for var in required_variables if var not in prompt]
+        if missing_vars:
+            raise ValueError(
+                f"Generated prompt is missing template variables: {missing_vars}. Prompt: {prompt}"
+            )

@@ -42,10 +42,10 @@ async def run_optimizer() -> None:
     remove_background_info = True
 
     # ------ Run the optimizer -----
-    await BotOptimizer.evaluate_combined_research_and_reasoning_prompts(
+    await BotOptimizer.optimize_combined_research_and_reasoning_prompts(
         questions=questions,
         research_tools=research_tools,
-        research_coordination_llm=research_coordination_llm,
+        research_agent_llm=research_coordination_llm,
         reasoning_llm=reasoning_llm,
         questions_batch_size=questions_batch_size,
         num_iterations_per_run=num_iterations_per_run,

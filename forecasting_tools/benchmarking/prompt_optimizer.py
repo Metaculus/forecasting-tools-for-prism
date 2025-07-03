@@ -11,6 +11,7 @@ from forecasting_tools.ai_models.agent_wrappers import (
     AgentRunner,
     AgentSdkLlm,
     AiAgent,
+    agent_trace,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
@@ -55,14 +56,14 @@ class PromptOptimizer:
         ideation_llm_name: Name of the LLM model to use for generating prompt variations
         prompts_to_scores_func: async function that takes a list of prompts and returns a list of scores
         prompt_purpose_explanation: e.g. "You are making a prompt for an AI to forecast binary questions about future events. You want to optimize ..."
-        prompt_requirements_explanation: e.g. "The prompt should 1) ask an AI to forecast a binary question, 2) require a final binary float as the output..."
+        prompt_requirements_explanation: e.g. "The prompt should 1) ask an AI to forecast a binary question, 2) ... \\n You have access to tools x,y,z with limits a, b, c "
         template_variables_explanation: e.g. "The prompt should include the following variables: {{question_text}}, {{background_info}}, {{resolution_criteria}}, {{fine_print}}, {{today}}, {{research}}. Always include at least one of each of these and only include research once"
-        ideation_considerations: e.g. "As you develop the prompt consider: - Research formats and length (consider all varieties) - Research sources (consider all varieties) - Reasoning formats and length (consider all varieties). Please respect these limits in tools use: x,y,z ..."
+        mutation_considerations: e.g. "As you develop the prompt consider: - Research formats and length (consider all varieties) - Research sources (consider all varieties) - Reasoning formats and length (consider all varieties)"
         format_scores_func: Async function that takes a list of scored prompts and returns a string of the scores and metadata. This is inserted into the prompt during prompt ideation.
         initial_prompt_population_size: Target size of the initial prompt population
         survivors_per_iteration: Number of best prompts to keep after each iteration
         mutated_prompts_per_survivor: Number of mutated prompts to generate from each survivor
-        breeded_prompts_per_iteration: Number of bred prompts to generate per iteration
+        breeded_prompts_per_iteration: Number of bred prompts to generate per iteration (all best survivors are considered when creating crossover ideas)
     """
 
     def __init__(
@@ -76,7 +77,7 @@ class PromptOptimizer:
         prompt_purpose_explanation: str,
         prompt_requirements_explanation: str,
         template_variables_explanation: str,
-        ideation_considerations: str,
+        mutation_considerations: str,
         format_scores_func: (
             Callable[[ScoredPrompt], Coroutine[Any, Any, str]] | None
         ),
@@ -93,7 +94,7 @@ class PromptOptimizer:
         self.prompt_purpose_explanation = prompt_purpose_explanation
         self.prompt_requirements_explanation = prompt_requirements_explanation
         self.template_variables_explanation = template_variables_explanation
-        self.ideation_considerations = ideation_considerations
+        self.mutation_considerations = mutation_considerations
         self.initial_prompt_population_size = initial_prompt_population_size
         self.survivors_per_iteration = survivors_per_iteration
         self.mutated_prompts_per_survivor = mutated_prompts_per_survivor
@@ -116,6 +117,10 @@ class PromptOptimizer:
             )
 
     async def create_optimized_prompt(self) -> OptimizationRun:
+        with agent_trace("Prompt Optimizer"):
+            return await self._create_optimized_prompt()
+
+    async def _create_optimized_prompt(self) -> OptimizationRun:
         initial_prompts: list[ImplementedPrompt] = [
             ImplementedPrompt(
                 text=prompt,
@@ -142,21 +147,24 @@ class PromptOptimizer:
         offspring_prompts: list[ImplementedPrompt] = initial_prompts.copy()
 
         for iteration_num in range(self.iterations):
-            logger.info(
-                f"Starting iteration {iteration_num + 1}/{self.iterations} - Current population size: {len(offspring_prompts)}"
-            )
+            with agent_trace(
+                f"Prompt Optimizer Iteration {iteration_num + 1}"
+            ):
+                logger.info(
+                    f"Starting iteration {iteration_num + 1}/{self.iterations} - Current population size: {len(offspring_prompts)}"
+                )
 
-            evaluated_prompts = await self._evaluate_new_members(
-                offspring_prompts
-            )
-            all_evaluated_prompts.extend(evaluated_prompts)
+                evaluated_prompts = await self._evaluate_new_members(
+                    offspring_prompts
+                )
+                all_evaluated_prompts.extend(evaluated_prompts)
 
-            updated_population = survivors + evaluated_prompts
-            survivors = await self._kill_the_weak(updated_population)
+                updated_population = survivors + evaluated_prompts
+                survivors = await self._kill_the_weak(updated_population)
 
-            offspring_prompts = await self._generate_new_prompts(survivors)
+                offspring_prompts = await self._generate_new_prompts(survivors)
 
-            self._log_duplicate_prompts(all_evaluated_prompts)
+                self._log_duplicate_prompts(all_evaluated_prompts)
 
         return OptimizationRun(scored_prompts=all_evaluated_prompts)
 
@@ -272,7 +280,7 @@ class PromptOptimizer:
                 {scores_str}
 
                 # Ideation Considerations
-                {self.ideation_considerations}
+                {self.mutation_considerations}
 
                 # Format
                 **Mutated Idea Title 1**
@@ -345,17 +353,14 @@ class PromptOptimizer:
             instructions=clean_indents(
                 f"""
                 # Instructions
-                You are an expert prompt engineer. Your task is to create {num_to_breed} new, high-quality forecasting PROMPT IDEAS
+                You are an expert prompt engineer. Your task is to create {num_to_breed} new, high-quality PROMPT IDEAS
                 by breeding (intelligently combining) ideas from several successful parent prompts.
-                These prompts are used by an AI to forecast binary questions.
-
-                Please generate exactly {num_to_breed} new, distinct prompt IDEAS.
-                Each new idea should represent a synergistic combination of the best elements from TWO OR MORE parent prompts.
-                Do not simply copy one parent or make only trivial combinations (e.g., just taking one sentence from one and one from another).
-                Aim for novel, potent combinations that are conceptually new prompt approaches derived from the parents.
-                Identify strengths in different parents and try to combine them. If parents have weaknesses, try to avoid them in the bred versions.
-
-                Each new prompt idea must be a concept for a new, complete prompt.
+                - Please generate exactly {num_to_breed} new, distinct prompt IDEAS.
+                - Each new idea should represent a synergistic combination of the best elements from TWO OR MORE parent prompts.
+                - Do not simply copy one parent or make only trivial combinations (e.g., just taking one sentence from one and one from another).
+                - Aim for novel, potent combinations that are conceptually new prompt approaches derived from the parents.
+                - Identify strengths in different parents and try to combine them. If parents have weaknesses, try to avoid them in the bred versions.
+                - Each new prompt idea must be a concept for a new, complete prompt.
 
                 # Purpose of Prompt
                 {self.prompt_purpose_explanation}
@@ -364,9 +369,6 @@ class PromptOptimizer:
                 The final prompt (i.e. not the ideas you will generate) will have the below requirements. Another agent will implement these requirements.
 
                 {self.prompt_requirements_explanation}
-
-                # Ideation Considerations
-                {self.ideation_considerations}
 
                 # Parent Prompts
                 {parent_details_str}

@@ -337,6 +337,10 @@ class CustomizableBot(ForecastBot):
             research_prompt,
             required_variables=CustomizableBot.REQUIRED_RESEARCH_PROMPT_VARIABLES,
         )
+        if "{research}" in research_prompt:
+            raise ValueError(
+                "Research prompt must not contain {research} variable since research has not been found yet"
+            )
 
     @classmethod
     def _validate_reasoning_prompt(cls, reasoning_prompt: str) -> None:

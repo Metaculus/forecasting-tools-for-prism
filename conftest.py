@@ -1,8 +1,11 @@
 # This file is run before any tests are run in order to configure tests
 
+from typing import Generator
+
 import dotenv
 import pytest
 
+from forecasting_tools.ai_models.agent_wrappers import agent_trace
 from forecasting_tools.util.custom_logger import CustomLogger
 
 
@@ -10,3 +13,9 @@ from forecasting_tools.util.custom_logger import CustomLogger
 def setup_logging() -> None:
     dotenv.load_dotenv()
     CustomLogger.setup_logging()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def wrap_all_tests_in_trace() -> Generator[None, None, None]:
+    with agent_trace("Running test suite"):
+        yield  # Run all tests

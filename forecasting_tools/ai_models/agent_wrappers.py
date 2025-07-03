@@ -8,8 +8,11 @@ from agents import (
     Runner,
     function_tool,
 )
+from agents import generation_span as gs
+from agents import trace
 from agents.extensions.models.litellm_model import LitellmModel
 from agents.stream_events import StreamEvent
+from agents.tracing.traces import TraceImpl
 
 from forecasting_tools.ai_models.model_tracker import ModelTracker
 
@@ -37,6 +40,9 @@ CodingTool = (
     CodeInterpreterTool  # Alias for CodeInterpreterTool for later extension
 )
 agent_tool = function_tool  # Alias for function_tool for later extension
+agent_trace = trace  # Alias for trace for later extension
+ImplementedTrace = TraceImpl  # Alias for TraceImpl for later extension
+generation_span = gs  # Alias for generation_span for later extension
 
 
 def event_to_tool_message(event: StreamEvent) -> str | None:

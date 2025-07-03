@@ -25,11 +25,11 @@ logger = logging.getLogger(__name__)
 class BotOptimizer:
 
     @classmethod
-    async def evaluate_combined_research_and_reasoning_prompts(
+    async def optimize_combined_research_and_reasoning_prompts(
         cls,
         questions: list[MetaculusQuestion],
         research_tools: list[ResearchTool],
-        research_coordination_llm: GeneralLlm,
+        research_agent_llm: GeneralLlm,
         reasoning_llm: GeneralLlm,
         questions_batch_size: int,
         num_iterations_per_run: int,
@@ -74,13 +74,14 @@ class BotOptimizer:
             {research_tool_limits}
             """
         )
-        ideation_considerations = clean_indents(
+        mutation_considerations = clean_indents(
             """
             As you develop the prompt consider:
             - Research formats and length (consider all varieties)
             - Research sources (consider all varieties)
             - Research strategies (i.e. which steps in which order, with what criteria for what steps)
             - Which tools to use and how much
+            - Whether you want to call tools in parallel at each step or not
             - Reasoning formats and length (consider all varieties)
             - Reasoning strategies (i.e. which steps in which order, with what criteria for what steps)
             """
@@ -124,25 +125,24 @@ class BotOptimizer:
                         reasoning_prompt_template=reasoning_prompt,
                         research_prompt_template=research_prompt,
                         research_tools=research_tools,
-                        research_llm=research_coordination_llm,
+                        research_llm=research_agent_llm,
                         reasoning_llm=reasoning_llm,
                         originating_idea=combined_prompt.idea,
                     )
                 )
             evaluation_result = await evaluator.evaluate_bot_configs(configs)
+            evaluated_prompts = evaluation_result.evaluated_prompts
+            assert len(evaluated_prompts) == len(
+                combined_prompts
+            ), f"Number of evaluated prompts ({len(evaluated_prompts)}) does not match number of combined prompts ({len(combined_prompts)})"
 
             prompt_scores = []
-            for i in range(len(combined_prompts)):
+            for evaluated_prompt in evaluated_prompts:
                 prompt_scores.append(
                     PromptScore(
-                        value=evaluation_result.evaluated_prompts[i].score,
+                        value=evaluated_prompt.score,
                         metadata={
-                            "benchmark": evaluation_result.evaluated_prompts[
-                                i
-                            ].benchmark,
-                            "config": evaluation_result.evaluated_prompts[
-                                i
-                            ].bot_config,
+                            "benchmark": evaluated_prompt.benchmark,
                         },
                     )
                 )
@@ -155,9 +155,9 @@ class BotOptimizer:
             prompts_to_scores_func=evaluate_combined_research_and_reasoning_prompts,
             prompt_purpose_explanation=prompt_purpose_explanation,
             prompt_requirements_explanation=prompt_requirements_explanation,
-            format_scores_func=cls._format_worst_scores_and_context,
             template_variables_explanation=template_variables_explanation,
-            ideation_considerations=ideation_considerations,
+            mutation_considerations=mutation_considerations,
+            format_scores_func=cls._format_worst_scores_and_context,
             initial_prompt_population_size=20,
             survivors_per_iteration=5,
             mutated_prompts_per_survivor=3,

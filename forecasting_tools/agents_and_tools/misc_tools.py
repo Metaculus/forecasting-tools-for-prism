@@ -16,9 +16,9 @@ from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
 
 
 @agent_tool
-async def get_general_news_with_asknews(topic: str) -> str:
+async def query_asknews(topic: str) -> str:
     """
-    Get general news context for a topic using AskNews. Can search international news from other languages.
+    Get an overview of news context for a topic using AskNews. Can search international news from other languages.
     This will provide a list of ~16 news articles and their summaries with fields:
     - Title
     - Summary

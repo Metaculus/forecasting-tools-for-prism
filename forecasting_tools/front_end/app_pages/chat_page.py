@@ -18,11 +18,11 @@ from forecasting_tools.agents_and_tools.hosted_file import (
 )
 from forecasting_tools.agents_and_tools.misc_tools import (
     create_tool_for_forecasting_bot,
-    get_general_news_with_asknews,
     grab_open_questions_from_tournament,
     grab_question_details_from_metaculus,
     perplexity_pro_search,
     perplexity_quick_search,
+    query_asknews,
     smart_searcher_search,
 )
 from forecasting_tools.agents_and_tools.question_generators.info_hazard_identifier import (
@@ -42,8 +42,8 @@ from forecasting_tools.ai_models.agent_wrappers import (
     AgentSdkLlm,
     AgentTool,
     AiAgent,
-    agent_trace,
     event_to_tool_message,
+    general_trace_or_span,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
@@ -137,7 +137,7 @@ class ChatPage(AppPage):
             QuestionDecomposer.decompose_into_questions_tool,
             QuestionOperationalizer.question_operationalizer_tool,
             perplexity_pro_search,
-            get_general_news_with_asknews,
+            query_asknews,
             smart_searcher_search,
             grab_question_details_from_metaculus,
             grab_open_questions_from_tournament,
@@ -463,7 +463,7 @@ class ChatPage(AppPage):
             handoffs=[],
         )
 
-        with agent_trace("Chat App") as chat_trace:
+        with general_trace_or_span("Chat App") as chat_trace:
             result = AgentRunner.run_streamed(
                 agent, st.session_state.messages, max_turns=20
             )

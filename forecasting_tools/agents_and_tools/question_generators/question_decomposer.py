@@ -8,8 +8,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 from forecasting_tools.agents_and_tools.misc_tools import (
-    get_general_news_with_asknews,
     perplexity_quick_search,
+    query_asknews,
 )
 from forecasting_tools.ai_models.agent_wrappers import (
     AgentRunner,
@@ -158,7 +158,7 @@ class QuestionDecomposer:
             name="Question Decomposer",
             instructions=instructions,
             model=llm,
-            tools=[perplexity_quick_search, get_general_news_with_asknews],
+            tools=[perplexity_quick_search, query_asknews],
             handoffs=[],
         )
         result = await AgentRunner.run(agent, prompt, max_turns=30)

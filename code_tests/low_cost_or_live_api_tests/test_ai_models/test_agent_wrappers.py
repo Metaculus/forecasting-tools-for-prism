@@ -15,9 +15,7 @@ from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import 
 logger = logging.getLogger(__name__)
 
 
-@pytest.mark.parametrize(
-    "model", ["openrouter/openai/gpt-3.5-turbo", "gpt-4.1"]
-)
+@pytest.mark.parametrize("model", ["openrouter/openai/gpt-4o", "gpt-4.1"])
 async def test_agent_sdk_llm_works(model: str) -> None:
     agent = AiAgent(
         name="Assistant",
@@ -31,9 +29,7 @@ async def test_agent_sdk_llm_works(model: str) -> None:
         assert cost_manager.current_usage > 0, "No cost was incurred"
 
 
-@pytest.mark.parametrize(
-    "model", ["openrouter/openai/gpt-3.5-turbo", "gpt-4.1"]
-)
+@pytest.mark.parametrize("model", ["openrouter/openai/gpt-4o", "gpt-4.1"])
 async def test_streamed_agent_sdk_llm_works(model: str) -> None:
     agent = AiAgent(
         name="Assistant",

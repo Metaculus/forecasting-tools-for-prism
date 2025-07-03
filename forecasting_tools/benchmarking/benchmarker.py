@@ -5,7 +5,7 @@ from typing import Sequence
 
 import typeguard
 
-from forecasting_tools.ai_models.agent_wrappers import agent_trace
+from forecasting_tools.ai_models.agent_wrappers import general_trace_or_span
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
@@ -82,7 +82,7 @@ class Benchmarker:
         self.code_to_snapshot = additional_code_to_snapshot
 
     async def run_benchmark(self) -> list[BenchmarkForBot]:
-        with agent_trace("Benchmarker"):
+        with general_trace_or_span("Benchmarker"):
             if self.questions_to_use is None:
                 assert (
                     self.number_of_questions_to_use is not None

@@ -14,9 +14,9 @@ class ControlPrompt:
     @classmethod
     def get_combined_prompt(cls) -> str:
         return clean_indents(
-            f"""{_CONTROL_REASONING_PROMPT}
+            f"""{_CONTROL_RESEARCH_PROMPT}
             {CustomizableBot.RESEARCH_REASONING_SPLIT_STRING}
-            {_CONTROL_RESEARCH_PROMPT}
+            {_CONTROL_REASONING_PROMPT}
             """
         )
 
@@ -67,5 +67,7 @@ You do not produce forecasts yourself.
 Question:
 {question_text}
 
-{tool_explanation}
+Please make only 1 search using the question text as a query (with Perplexity if available).
+Completely restate what the search tool tells you in full without any additional commentary.
+Don't use any other tools other than the 1 search with the question text as the query.
 """

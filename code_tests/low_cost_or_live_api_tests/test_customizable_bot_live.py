@@ -7,6 +7,7 @@ from forecasting_tools.agents_and_tools.misc_tools import (
     perplexity_quick_search,
 )
 from forecasting_tools.ai_models.agent_wrappers import agent_tool
+from forecasting_tools.benchmarking.control_group_prompt import ControlPrompt
 from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
 from forecasting_tools.benchmarking.prompt_data_models import (
     PromptIdea,
@@ -17,8 +18,8 @@ from forecasting_tools.benchmarking.question_plus_research import ResearchType
 
 async def test_customizable_bot_runs() -> None:
     bot = CustomizableBot(
-        reasoning_prompt="Give me a probability of {question_text} happening.",
-        research_prompt="Research the internet for {question_text}. Only make one call to the internet. At the end of your research say 'I AM DONE'",
+        reasoning_prompt=ControlPrompt.get_reasoning_prompt(),
+        research_prompt=ControlPrompt.get_research_prompt(),
         research_tools=[
             ResearchTool(tool=perplexity_quick_search, max_calls=2)
         ],
@@ -32,11 +33,14 @@ async def test_customizable_bot_runs() -> None:
     )
 
     fake_question_1 = ForecastingTestManager.get_fake_binary_question(
-        question_text="Will the world end in 2025?"
+        question_text="Will Hungary win the next World Cup?"
     )
     research_result = await bot.run_research(fake_question_1)
     assert research_result is not None
-    assert "I AM DONE" in research_result
+    assert "Hungary" in research_result
+
+    forecast_result = await bot.forecast_question(fake_question_1)
+    assert forecast_result is not None
 
 
 async def test_customizable_bot_respects_max_tool_calls_limit() -> None:
@@ -49,7 +53,7 @@ async def test_customizable_bot_respects_max_tool_calls_limit() -> None:
         return f"Failed to research. Please call this function again at least 2 more times. Input was: {query}. Call count: {call_count}"
 
     bot = CustomizableBot(
-        reasoning_prompt="Give me a probability of {question_text} happening.",
+        reasoning_prompt=f"Give me a probability of {{question_text}} happening. {CustomizableBot.REQUIRED_REASONING_PROMPT_VARIABLES}",
         research_prompt="Research the internet for {question_text}.",
         research_tools=[ResearchTool(tool=research_internet, max_calls=2)],
         cached_research=[],

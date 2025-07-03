@@ -2,8 +2,8 @@ import asyncio
 import logging
 
 from forecasting_tools.agents_and_tools.misc_tools import (
-    get_general_news_with_asknews,
     perplexity_quick_search_low_context,
+    query_asknews,
 )
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.benchmarking.bot_optimizer import BotOptimizer
@@ -26,7 +26,7 @@ async def run_optimizer() -> None:
             max_calls=1,
         ),
         ResearchTool(
-            tool=get_general_news_with_asknews,
+            tool=query_asknews,
             max_calls=1,
         ),
     ]
@@ -42,7 +42,7 @@ async def run_optimizer() -> None:
     remove_background_info = True
 
     # ------ Run the optimizer -----
-    await BotOptimizer.optimize_combined_research_and_reasoning_prompts(
+    await BotOptimizer.optimize_a_combined_research_and_reasoning_prompt(
         questions=questions,
         research_tools=research_tools,
         research_agent_llm=research_coordination_llm,

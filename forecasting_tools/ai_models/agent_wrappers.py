@@ -1,4 +1,5 @@
 import asyncio
+from typing import Any
 
 import nest_asyncio
 from agents import (
@@ -6,12 +7,17 @@ from agents import (
     CodeInterpreterTool,
     FunctionTool,
     Runner,
+    Span,
+    Trace,
+    custom_span,
     function_tool,
 )
 from agents import generation_span as gs
 from agents import trace
 from agents.extensions.models.litellm_model import LitellmModel
 from agents.stream_events import StreamEvent
+from agents.tracing.setup import GLOBAL_TRACE_PROVIDER
+from agents.tracing.span_data import CustomSpanData
 from agents.tracing.traces import TraceImpl
 
 from forecasting_tools.ai_models.model_tracker import ModelTracker
@@ -33,6 +39,16 @@ class AgentSdkLlm(LitellmModel):
         return response
 
 
+def general_trace_or_span(
+    name: str, data: dict[str, Any] | None = None, **kwargs
+) -> Span[CustomSpanData] | Trace:
+    current_trace = GLOBAL_TRACE_PROVIDER.get_current_trace()
+    if current_trace:
+        return trace(workflow_name=name, metadata=data, **kwargs)
+    else:
+        return custom_span(name, data, **kwargs)
+
+
 AgentRunner = Runner  # Alias for Runner for later extension
 AgentTool = FunctionTool  # Alias for FunctionTool for later extension
 AiAgent = Agent  # Alias for Agent for later extension
@@ -40,7 +56,6 @@ CodingTool = (
     CodeInterpreterTool  # Alias for CodeInterpreterTool for later extension
 )
 agent_tool = function_tool  # Alias for function_tool for later extension
-agent_trace = trace  # Alias for trace for later extension
 ImplementedTrace = TraceImpl  # Alias for TraceImpl for later extension
 generation_span = gs  # Alias for generation_span for later extension
 

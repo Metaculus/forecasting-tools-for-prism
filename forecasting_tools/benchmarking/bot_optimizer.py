@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class BotOptimizer:
 
     @classmethod
-    async def optimize_combined_research_and_reasoning_prompts(
+    async def optimize_a_combined_research_and_reasoning_prompt(
         cls,
         questions: list[MetaculusQuestion],
         research_tools: list[ResearchTool],
@@ -37,6 +37,7 @@ class BotOptimizer:
         remove_background_info: bool,
     ) -> OptimizationRun:
         logger.info(f"Loaded {len(questions)} questions")
+        questions = [question.model_copy(deep=True) for question in questions]
         if remove_background_info:
             for question in questions:
                 question.background_info = None
@@ -149,7 +150,7 @@ class BotOptimizer:
             return prompt_scores
 
         optimizer = PromptOptimizer(
-            initial_prompts=[ControlPrompt.get_combined_prompt()],
+            initial_prompt=[ControlPrompt.get_combined_prompt()],
             iterations=num_iterations_per_run,
             ideation_llm_name=ideation_llm,
             prompts_to_scores_func=evaluate_combined_research_and_reasoning_prompts,

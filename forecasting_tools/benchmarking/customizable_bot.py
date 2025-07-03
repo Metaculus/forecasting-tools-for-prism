@@ -105,7 +105,6 @@ class CustomizableBot(ForecastBot):
     ]
     REQUIRED_RESEARCH_PROMPT_VARIABLES = [
         "{question_text}",
-        "{tool_explanation}",
     ]
     OPTIONAL_RESEARCH_PROMPT_VARIABLES = [
         "{resolution_criteria}",
@@ -339,7 +338,7 @@ class CustomizableBot(ForecastBot):
         )
         if "{research}" in research_prompt:
             raise ValueError(
-                "Research prompt must not contain {research} variable since research has not been found yet"
+                f"Research prompt must not contain {{research}} variable since research has not been found yet. Research prompt: {research_prompt}"
             )
 
     @classmethod

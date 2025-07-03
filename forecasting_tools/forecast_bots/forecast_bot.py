@@ -12,7 +12,7 @@ from typing import Any, Coroutine, Literal, Sequence, TypeVar, cast, overload
 from exceptiongroup import ExceptionGroup
 from pydantic import BaseModel
 
-from forecasting_tools.ai_models.agent_wrappers import agent_trace
+from forecasting_tools.ai_models.agent_wrappers import general_trace_or_span
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
@@ -329,7 +329,7 @@ class ForecastBot(ABC):
     async def _run_individual_question_with_error_propagation(
         self, question: MetaculusQuestion
     ) -> ForecastReport:
-        with agent_trace(
+        with general_trace_or_span(
             f"{self.__class__.__name__} - Question: {question.page_url}"
         ):
             try:

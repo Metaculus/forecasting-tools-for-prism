@@ -11,7 +11,8 @@ from forecasting_tools.ai_models.agent_wrappers import (
     AgentRunner,
     AgentSdkLlm,
     AiAgent,
-    agent_trace,
+    general_span,
+    general_trace_or_span,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
@@ -25,7 +26,6 @@ logger = logging.getLogger(__name__)
 class ImplementedPrompt(BaseModel):
     text: str
     idea: PromptIdea
-    iteration_number: int
     originating_ideas: list[PromptIdea]
 
 
@@ -35,8 +35,8 @@ class PromptScore(BaseModel):
 
 
 class ScoredPrompt(BaseModel):
-    prompt: ImplementedPrompt
     score: PromptScore
+    prompt: ImplementedPrompt
 
 
 class OptimizationRun(BaseModel):
@@ -68,7 +68,7 @@ class PromptOptimizer:
 
     def __init__(
         self,
-        initial_prompts: list[str],
+        initial_prompt: str,
         iterations: int,
         ideation_llm_name: str,
         prompts_to_scores_func: Callable[
@@ -86,10 +86,10 @@ class PromptOptimizer:
         mutated_prompts_per_survivor: int = 4,
         breeded_prompts_per_iteration: int = 5,
     ) -> None:
-        self.initial_prompts = initial_prompts
+        self.initial_prompt = initial_prompt
         self.iterations = iterations
         self.ideation_llm_name = ideation_llm_name
-        self.prompt_to_score_func = prompts_to_scores_func
+        self.prompt_to_scores_func = prompts_to_scores_func
         self.format_scores_func = format_scores_func
         self.prompt_purpose_explanation = prompt_purpose_explanation
         self.prompt_requirements_explanation = prompt_requirements_explanation
@@ -108,46 +108,33 @@ class PromptOptimizer:
                 "At least one of mutated_prompts_per_surviving_prompt or breeded_prompts_per_iteration must be greater than 0"
             )
 
-        if (
-            len(self.initial_prompts) > self.initial_prompt_population_size
-            or self.initial_prompt_population_size < 1
-        ):
-            raise ValueError(
-                f"Initial prompt population size must be greater than 0 and less than or equal to the number of initial prompts. Got {self.initial_prompt_population_size} and {len(self.initial_prompts)}."
-            )
-
     async def create_optimized_prompt(self) -> OptimizationRun:
-        with agent_trace("Prompt Optimizer"):
+        with general_span("Prompt Optimizer"):
             return await self._create_optimized_prompt()
 
     async def _create_optimized_prompt(self) -> OptimizationRun:
-        initial_prompts: list[ImplementedPrompt] = [
-            ImplementedPrompt(
-                text=prompt,
-                idea=PromptIdea(
-                    short_name=f"Initial Seed {i}",
-                    full_text=f"The user-provided initial prompt {i}.",
-                ),
-                iteration_number=0,
-                originating_ideas=[],
-            )
-            for i, prompt in enumerate(self.initial_prompts)
-        ]
-        prompts_still_needed = self.initial_prompt_population_size - len(
-            initial_prompts
-        )
+        prompts_still_needed = self.initial_prompt_population_size - 1
+        starting_prompts: list[ImplementedPrompt] = []
         if prompts_still_needed > 0:
             additional_initial_prompts = await self._mutate_prompt(
-                initial_prompts[0], prompts_still_needed
+                ImplementedPrompt(
+                    text=self.initial_prompt,
+                    idea=PromptIdea(
+                        short_name="Initial Seed",
+                        full_text="The user-provided initial prompt",
+                    ),
+                    originating_ideas=[],
+                ),
+                prompts_still_needed,
             )
-            initial_prompts.extend(additional_initial_prompts)
+            starting_prompts = additional_initial_prompts
 
         all_evaluated_prompts: list[ScoredPrompt] = []
         survivors: list[ScoredPrompt] = []
-        offspring_prompts: list[ImplementedPrompt] = initial_prompts.copy()
+        offspring_prompts: list[ImplementedPrompt] = starting_prompts
 
         for iteration_num in range(self.iterations):
-            with agent_trace(
+            with general_trace_or_span(
                 f"Prompt Optimizer Iteration {iteration_num + 1}"
             ):
                 logger.info(
@@ -216,7 +203,7 @@ class PromptOptimizer:
     async def _evaluate_new_members(
         self, prompts: list[ImplementedPrompt]
     ) -> list[ScoredPrompt]:
-        scores = await self.prompt_to_score_func(prompts)
+        scores = await self.prompt_to_scores_func(prompts)
         return [
             ScoredPrompt(prompt=p, score=s) for p, s in zip(prompts, scores)
         ]
@@ -313,7 +300,10 @@ class PromptOptimizer:
             )
             mutated_ideas = mutated_ideas[:num_mutations_to_generate]
 
-        implemented_prompts = await self._implement_prompt_ideas(mutated_ideas)
+        implemented_prompts = await self._implement_prompt_ideas(
+            mutated_ideas,
+            [prompt.originating_ideas] * num_mutations_to_generate,
+        )
         logger.info(
             f"Successfully created {len(implemented_prompts)} implemented prompts from {len(mutated_ideas)} mutation ideas."
         )
@@ -403,16 +393,28 @@ class PromptOptimizer:
                 f"Requested {num_to_breed} bred ideas, but got {len(bred_ideas)}. Returning {bred_ideas[:num_to_breed]}"
             )
             bred_ideas = bred_ideas[:num_to_breed]
-        new_prompts = await self._implement_prompt_ideas(bred_ideas)
+        new_prompts = await self._implement_prompt_ideas(
+            bred_ideas,
+            [[sp.prompt.idea for sp in parent_scored_prompts] * num_to_breed],
+        )
         logger.info(
             f"Successfully created {len(new_prompts)} implemented prompts from bred ideas."
         )
         return new_prompts
 
     async def _implement_prompt_ideas(
-        self, prompt_ideas: list[PromptIdea]
+        self,
+        prompt_ideas: list[PromptIdea],
+        originating_ideas: list[list[PromptIdea]],
     ) -> list[ImplementedPrompt]:
-        tasks = [self._implement_prompt_idea(idea) for idea in prompt_ideas]
+        if len(prompt_ideas) != len(originating_ideas):
+            raise ValueError(
+                f"Number of prompt ideas ({len(prompt_ideas)}) does not match number of originating ideas ({len(originating_ideas)})"
+            )
+        tasks = [
+            self._implement_prompt_idea(idea, originating_ideas)
+            for idea, originating_ideas in zip(prompt_ideas, originating_ideas)
+        ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         implemented_prompts = [
             result
@@ -428,7 +430,7 @@ class PromptOptimizer:
         return implemented_prompts
 
     async def _implement_prompt_idea(
-        self, prompt_idea: PromptIdea
+        self, prompt_idea: PromptIdea, originating_ideas: list[PromptIdea]
     ) -> ImplementedPrompt:
         agent = AiAgent(
             name="Prompt Implementor",
@@ -462,12 +464,17 @@ class PromptOptimizer:
             agent,
             f"Please implement a prompt for the idea: '{prompt_idea.short_name}'. Return only the prompt text itself.",
         )
-        prompt = output.final_output
+        prompt: str = output.final_output
 
         logger.info(
             f"Generated prompt string for idea '{prompt_idea.short_name}': {prompt}"
         )
-        return prompt
+        implemented_prompt = ImplementedPrompt(
+            text=prompt,
+            idea=prompt_idea,
+            originating_ideas=originating_ideas,
+        )
+        return implemented_prompt
 
     def _log_duplicate_prompts(self, prompts: list[ScoredPrompt]) -> None:
         for prompt in prompts:

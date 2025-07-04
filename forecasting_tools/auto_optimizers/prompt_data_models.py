@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from forecasting_tools.ai_models.agent_wrappers import AgentTool
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
+from forecasting_tools.cp_benchmarking.benchmark_for_bot import BenchmarkForBot
 
 
 class PromptIdea(BaseModel):

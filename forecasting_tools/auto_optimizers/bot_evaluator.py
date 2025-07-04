@@ -17,8 +17,8 @@ from forecasting_tools.auto_optimizers.question_plus_research import (
     QuestionPlusResearch,
     ResearchType,
 )
-from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
-from forecasting_tools.benchmarking.benchmarker import Benchmarker
+from forecasting_tools.cp_benchmarking.benchmark_for_bot import BenchmarkForBot
+from forecasting_tools.cp_benchmarking.benchmarker import Benchmarker
 from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 

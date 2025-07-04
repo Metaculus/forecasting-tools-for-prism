@@ -9,7 +9,7 @@ from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import 
 from forecasting_tools.auto_optimizers.question_plus_research import (
     QuestionPlusResearch,
 )
-from forecasting_tools.benchmarking.benchmarker import Benchmarker
+from forecasting_tools.cp_benchmarking.benchmarker import Benchmarker
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 from forecasting_tools.util.custom_logger import CustomLogger
 from run_bots import configure_and_run_bot, get_all_bots

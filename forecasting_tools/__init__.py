@@ -56,13 +56,13 @@ from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import 
 from forecasting_tools.auto_optimizers.bot_optimizer import (
     BotOptimizer as BotOptimizer,
 )
-from forecasting_tools.benchmarking.benchmark_displayer import (
+from forecasting_tools.cp_benchmarking.benchmark_displayer import (
     run_benchmark_streamlit_page as run_benchmark_streamlit_page,
 )
-from forecasting_tools.benchmarking.benchmark_for_bot import (
+from forecasting_tools.cp_benchmarking.benchmark_for_bot import (
     BenchmarkForBot as BenchmarkForBot,
 )
-from forecasting_tools.benchmarking.benchmarker import (
+from forecasting_tools.cp_benchmarking.benchmarker import (
     Benchmarker as Benchmarker,
 )
 from forecasting_tools.data_models.binary_report import (

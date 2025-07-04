@@ -18,7 +18,7 @@ from forecasting_tools.auto_optimizers.prompt_optimizer import (
     PromptScore,
     ScoredPrompt,
 )
-from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
+from forecasting_tools.cp_benchmarking.benchmark_for_bot import BenchmarkForBot
 from forecasting_tools.data_models.questions import MetaculusQuestion
 
 logger = logging.getLogger(__name__)

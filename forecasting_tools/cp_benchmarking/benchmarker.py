@@ -9,7 +9,7 @@ from forecasting_tools.ai_models.agent_wrappers import general_trace_or_span
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
-from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
+from forecasting_tools.cp_benchmarking.benchmark_for_bot import BenchmarkForBot
 from forecasting_tools.data_models.data_organizer import ReportTypes
 from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot

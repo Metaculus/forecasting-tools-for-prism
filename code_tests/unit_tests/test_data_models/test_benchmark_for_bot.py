@@ -1,7 +1,7 @@
 import pytest
 
 from code_tests.utilities_for_tests import jsonable_assertations
-from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
+from forecasting_tools.cp_benchmarking.benchmark_for_bot import BenchmarkForBot
 from forecasting_tools.data_models.binary_report import BinaryReport
 from forecasting_tools.data_models.multiple_choice_report import (
     MultipleChoiceReport,

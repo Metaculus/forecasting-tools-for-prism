@@ -3,7 +3,7 @@ import logging
 from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
     ForecastingTestManager,
 )
-from forecasting_tools.agents_and_tools.misc_tools import query_asknews
+from forecasting_tools.agents_and_tools.minor_tools import query_asknews
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,

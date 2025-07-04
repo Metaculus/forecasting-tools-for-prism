@@ -6,7 +6,9 @@ from typing import Any, Callable, Coroutine
 
 from pydantic import BaseModel
 
-from forecasting_tools.agents_and_tools.misc_tools import perplexity_pro_search
+from forecasting_tools.agents_and_tools.minor_tools import (
+    perplexity_pro_search,
+)
 from forecasting_tools.ai_models.agent_wrappers import (
     AgentRunner,
     AgentSdkLlm,

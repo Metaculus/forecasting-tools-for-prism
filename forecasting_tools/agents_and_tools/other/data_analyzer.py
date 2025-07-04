@@ -3,7 +3,7 @@ import logging
 
 from pydantic import BaseModel
 
-from forecasting_tools.agents_and_tools.misc_tools import (
+from forecasting_tools.agents_and_tools.minor_tools import (
     perplexity_quick_search,
 )
 from forecasting_tools.ai_models.agent_wrappers import (

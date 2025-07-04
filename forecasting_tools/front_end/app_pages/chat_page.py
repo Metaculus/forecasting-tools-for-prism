@@ -9,7 +9,7 @@ import streamlit as st
 from openai.types.responses import ResponseTextDeltaEvent
 from pydantic import BaseModel, Field
 
-from forecasting_tools.agents_and_tools.misc_tools import (
+from forecasting_tools.agents_and_tools.minor_tools import (
     create_tool_for_forecasting_bot,
     grab_open_questions_from_tournament,
     grab_question_details_from_metaculus,

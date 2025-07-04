@@ -3,7 +3,7 @@ import pytest
 from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
     ForecastingTestManager,
 )
-from forecasting_tools.agents_and_tools.misc_tools import (
+from forecasting_tools.agents_and_tools.minor_tools import (
     perplexity_quick_search,
 )
 from forecasting_tools.ai_models.agent_wrappers import agent_tool

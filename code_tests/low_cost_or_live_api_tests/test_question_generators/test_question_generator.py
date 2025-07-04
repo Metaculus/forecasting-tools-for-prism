@@ -3,11 +3,11 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from forecasting_tools.agents_and_tools.deprecated.question_generator import (
+    QuestionGenerator,
+)
 from forecasting_tools.agents_and_tools.question_generators.generated_question import (
     GeneratedQuestion,
-)
-from forecasting_tools.agents_and_tools.question_generators.question_generator import (
-    QuestionGenerator,
 )
 from forecasting_tools.agents_and_tools.question_generators.simple_question import (
     SimpleQuestion,

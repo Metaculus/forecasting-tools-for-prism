@@ -3,7 +3,7 @@ import logging
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.auto_optimizers.bot_evaluator import BotEvaluator
-from forecasting_tools.data_models.question_plus_research import (
+from forecasting_tools.auto_optimizers.question_plus_research import (
     QuestionPlusResearch,
     ResearchType,
 )

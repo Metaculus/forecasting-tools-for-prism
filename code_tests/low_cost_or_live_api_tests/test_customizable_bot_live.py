@@ -15,7 +15,9 @@ from forecasting_tools.auto_optimizers.prompt_data_models import (
     PromptIdea,
     ResearchTool,
 )
-from forecasting_tools.data_models.question_plus_research import ResearchType
+from forecasting_tools.auto_optimizers.question_plus_research import (
+    ResearchType,
+)
 
 
 async def test_customizable_bot_runs() -> None:

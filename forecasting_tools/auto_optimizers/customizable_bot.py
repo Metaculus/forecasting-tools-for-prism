@@ -14,15 +14,15 @@ from forecasting_tools.auto_optimizers.prompt_data_models import (
     PromptIdea,
     ResearchTool,
 )
+from forecasting_tools.auto_optimizers.question_plus_research import (
+    QuestionPlusResearch,
+    ResearchType,
+)
 from forecasting_tools.data_models.forecast_report import ReasonedPrediction
 from forecasting_tools.data_models.multiple_choice_report import (
     PredictedOptionList,
 )
 from forecasting_tools.data_models.numeric_report import NumericDistribution
-from forecasting_tools.data_models.question_plus_research import (
-    QuestionPlusResearch,
-    ResearchType,
-)
 from forecasting_tools.data_models.questions import (
     BinaryQuestion,
     MetaculusQuestion,

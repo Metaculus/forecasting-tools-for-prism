@@ -12,7 +12,7 @@ from forecasting_tools.auto_optimizers.customizable_bot import (
     ResearchTool,
 )
 from forecasting_tools.auto_optimizers.prompt_data_models import PromptIdea
-from forecasting_tools.data_models.question_plus_research import (
+from forecasting_tools.auto_optimizers.question_plus_research import (
     QuestionPlusResearch,
     ResearchItem,
     ResearchType,

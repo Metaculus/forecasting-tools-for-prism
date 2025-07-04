@@ -7,12 +7,12 @@ from forecasting_tools.ai_models.agent_wrappers import AgentTool, agent_tool
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
-from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
-from forecasting_tools.forecast_helpers.metaculus_api import (
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
+from forecasting_tools.helpers.metaculus_api import (
     MetaculusApi,
     MetaculusQuestion,
 )
-from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
+from forecasting_tools.helpers.smart_searcher import SmartSearcher
 
 
 @agent_tool

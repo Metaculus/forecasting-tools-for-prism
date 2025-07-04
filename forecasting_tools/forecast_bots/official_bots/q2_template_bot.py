@@ -18,12 +18,10 @@ from forecasting_tools.data_models.questions import (
     NumericQuestion,
 )
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
-from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
-from forecasting_tools.forecast_helpers.prediction_extractor import (
-    PredictionExtractor,
-)
-from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.prediction_extractor import PredictionExtractor
+from forecasting_tools.helpers.smart_searcher import SmartSearcher
 
 logger = logging.getLogger(__name__)
 

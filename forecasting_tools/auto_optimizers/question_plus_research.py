@@ -6,7 +6,7 @@ from enum import Enum
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 
 from forecasting_tools.data_models.data_organizer import QuestionTypes
-from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
 from forecasting_tools.util.jsonable import Jsonable
 
 

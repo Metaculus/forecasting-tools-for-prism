@@ -17,14 +17,14 @@ from forecasting_tools.agents_and_tools.base_rates.base_rate_researcher import (
     BaseRateReport,
     BaseRateResearcher,
 )
-from forecasting_tools.forecast_helpers.forecast_database_manager import (
-    ForecastDatabaseManager,
-    ForecastRunType,
-)
 from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
 from forecasting_tools.front_end.helpers.tool_page import ToolPage
+from forecasting_tools.helpers.forecast_database_manager import (
+    ForecastDatabaseManager,
+    ForecastRunType,
+)
 from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)

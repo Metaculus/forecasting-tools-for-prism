@@ -5,7 +5,7 @@ from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.forecast_bots.official_bots.q1_template_bot import (
     Q1TemplateBot2025,
 )
-from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
 
 logger = logging.getLogger(__name__)
 

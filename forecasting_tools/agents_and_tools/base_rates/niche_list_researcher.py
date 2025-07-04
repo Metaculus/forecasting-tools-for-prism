@@ -13,7 +13,7 @@ from forecasting_tools.agents_and_tools.deprecated.configured_llms import (
     BasicLlm,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
-from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
+from forecasting_tools.helpers.smart_searcher import SmartSearcher
 from forecasting_tools.util import async_batching
 from forecasting_tools.util.misc import (
     extract_url_from_markdown_link,

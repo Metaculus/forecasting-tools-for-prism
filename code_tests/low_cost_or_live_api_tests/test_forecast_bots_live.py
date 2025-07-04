@@ -18,7 +18,7 @@ from forecasting_tools.forecast_bots.bot_lists import (
 )
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 from forecasting_tools.forecast_bots.template_bot import TemplateBot
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 
 logger = logging.getLogger(__name__)
 

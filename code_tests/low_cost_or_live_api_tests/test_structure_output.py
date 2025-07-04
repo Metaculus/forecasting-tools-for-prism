@@ -3,9 +3,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from forecasting_tools.forecast_helpers.structure_output import (
-    structure_output,
-)
+from forecasting_tools.helpers.structure_output import structure_output
 
 
 class MathProblem(BaseModel):

@@ -21,10 +21,10 @@ from forecasting_tools.data_models.questions import (
     NumericQuestion,
 )
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
-from forecasting_tools.forecast_helpers.forecast_database_manager import (
+from forecasting_tools.helpers.forecast_database_manager import (
     ForecastDatabaseManager,
 )
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 
 T = TypeVar("T", bound=MetaculusQuestion)
 

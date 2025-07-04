@@ -30,9 +30,7 @@ from forecasting_tools.data_models.questions import (
     NumericQuestion,
 )
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
-from forecasting_tools.forecast_helpers.structure_output import (
-    structure_output,
-)
+from forecasting_tools.helpers.structure_output import structure_output
 
 logger = logging.getLogger(__name__)
 

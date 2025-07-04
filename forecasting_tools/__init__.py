@@ -130,19 +130,17 @@ from forecasting_tools.forecast_bots.other.uniform_probability_bot import (
 from forecasting_tools.forecast_bots.template_bot import (
     TemplateBot as TemplateBot,
 )
-from forecasting_tools.forecast_helpers.asknews_searcher import (
+from forecasting_tools.helpers.asknews_searcher import (
     AskNewsSearcher as AskNewsSearcher,
 )
-from forecasting_tools.forecast_helpers.metaculus_api import (
-    ApiFilter as ApiFilter,
-)
-from forecasting_tools.forecast_helpers.metaculus_api import (
+from forecasting_tools.helpers.metaculus_api import ApiFilter as ApiFilter
+from forecasting_tools.helpers.metaculus_api import (
     MetaculusApi as MetaculusApi,
 )
-from forecasting_tools.forecast_helpers.prediction_extractor import (
+from forecasting_tools.helpers.prediction_extractor import (
     PredictionExtractor as PredictionExtractor,
 )
-from forecasting_tools.forecast_helpers.smart_searcher import (
+from forecasting_tools.helpers.smart_searcher import (
     SmartSearcher as SmartSearcher,
 )
 

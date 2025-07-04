@@ -15,9 +15,7 @@ from forecasting_tools.data_models.questions import (
 from forecasting_tools.forecast_bots.official_bots.q1_template_bot import (
     Q1TemplateBot2025,
 )
-from forecasting_tools.forecast_helpers.prediction_extractor import (
-    PredictionExtractor,
-)
+from forecasting_tools.helpers.prediction_extractor import PredictionExtractor
 
 
 class Q1TemplateBotWithConvertToBinary(Q1TemplateBot2025):

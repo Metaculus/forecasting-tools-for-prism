@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
 
 logger = logging.getLogger(__name__)
 

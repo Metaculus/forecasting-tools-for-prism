@@ -15,9 +15,7 @@ from forecasting_tools.ai_models.agent_wrappers import (
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.auto_optimizers.prompt_data_models import PromptIdea
-from forecasting_tools.forecast_helpers.structure_output import (
-    structure_output,
-)
+from forecasting_tools.helpers.structure_output import structure_output
 
 logger = logging.getLogger(__name__)
 

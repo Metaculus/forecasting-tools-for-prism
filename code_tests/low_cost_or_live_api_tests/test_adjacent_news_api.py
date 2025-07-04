@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta
 
-from forecasting_tools.forecast_helpers.adjacent_news_api import (
+from forecasting_tools.helpers.adjacent_news_api import (
     AdjacentFilter,
     AdjacentNewsApi,
 )

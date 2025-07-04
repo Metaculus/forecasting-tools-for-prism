@@ -13,9 +13,7 @@ from forecasting_tools.ai_models.model_interfaces.ai_model import AiModel
 from forecasting_tools.ai_models.model_interfaces.outputs_text import (
     OutputsText,
 )
-from forecasting_tools.forecast_helpers.works_cited_creator import (
-    WorksCitedCreator,
-)
+from forecasting_tools.helpers.works_cited_creator import WorksCitedCreator
 from forecasting_tools.util.misc import (
     fill_in_citations,
     make_text_fragment_url,

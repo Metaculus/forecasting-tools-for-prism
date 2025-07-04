@@ -6,7 +6,7 @@ import random
 from forecasting_tools.auto_optimizers.question_plus_research import (
     QuestionPlusResearch,
 )
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 from forecasting_tools.util.custom_logger import CustomLogger
 
 logger = logging.getLogger(__name__)

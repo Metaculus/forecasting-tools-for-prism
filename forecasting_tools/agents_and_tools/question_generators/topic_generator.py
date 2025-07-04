@@ -8,11 +8,9 @@ from pydantic import BaseModel
 from forecasting_tools.ai_models.agent_wrappers import agent_tool
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
-from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
-from forecasting_tools.forecast_helpers.structure_output import (
-    structure_output,
-)
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
+from forecasting_tools.helpers.smart_searcher import SmartSearcher
+from forecasting_tools.helpers.structure_output import structure_output
 
 logger = logging.getLogger(__name__)
 

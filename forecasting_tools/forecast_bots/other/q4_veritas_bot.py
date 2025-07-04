@@ -13,9 +13,7 @@ from forecasting_tools.data_models.questions import (
 from forecasting_tools.forecast_bots.official_bots.q3_template_bot import (
     Q3TemplateBot2024,
 )
-from forecasting_tools.forecast_helpers.prediction_extractor import (
-    PredictionExtractor,
-)
+from forecasting_tools.helpers.prediction_extractor import PredictionExtractor
 
 
 class Q4VeritasBot(Q3TemplateBot2024):

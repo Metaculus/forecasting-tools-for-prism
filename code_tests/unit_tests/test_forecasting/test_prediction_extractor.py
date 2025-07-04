@@ -5,9 +5,7 @@ from forecasting_tools.data_models.multiple_choice_report import (
 )
 from forecasting_tools.data_models.numeric_report import Percentile
 from forecasting_tools.data_models.questions import NumericQuestion
-from forecasting_tools.forecast_helpers.prediction_extractor import (
-    PredictionExtractor,
-)
+from forecasting_tools.helpers.prediction_extractor import PredictionExtractor
 
 
 @pytest.mark.parametrize(

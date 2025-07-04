@@ -17,9 +17,7 @@ from forecasting_tools.data_models.questions import (
     NumericQuestion,
 )
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
-from forecasting_tools.forecast_helpers.prediction_extractor import (
-    PredictionExtractor,
-)
+from forecasting_tools.helpers.prediction_extractor import PredictionExtractor
 
 
 class Q3TemplateBot2024(ForecastBot):

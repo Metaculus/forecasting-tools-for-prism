@@ -23,7 +23,7 @@ from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 from forecasting_tools.forecast_bots.official_bots.q1_template_bot import (
     Q1TemplateBot2025,
 )
-from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
+from forecasting_tools.helpers.smart_searcher import SmartSearcher
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ from forecasting_tools.agents_and_tools.base_rates.base_rate_researcher import (
 )
 from forecasting_tools.data_models.data_organizer import DataOrganizer
 from forecasting_tools.data_models.forecast_report import ForecastReport
-from forecasting_tools.forecast_helpers.forecast_database_manager import (
+from forecasting_tools.helpers.forecast_database_manager import (
     ForecastDatabaseManager,
     ForecastRunType,
 )

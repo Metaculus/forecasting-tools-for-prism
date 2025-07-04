@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 
 from forecasting_tools.data_models.forecast_report import ForecastReport
 from forecasting_tools.data_models.questions import MultipleChoiceQuestion
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 
 
 class PredictedOption(BaseModel):

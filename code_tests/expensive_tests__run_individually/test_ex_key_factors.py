@@ -9,7 +9,7 @@ from forecasting_tools.agents_and_tools.key_factors_researcher import (
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 
 logger = logging.getLogger(__name__)
 

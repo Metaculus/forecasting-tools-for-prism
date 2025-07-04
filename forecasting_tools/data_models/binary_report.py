@@ -8,7 +8,7 @@ from pydantic import AliasChoices, Field, field_validator
 
 from forecasting_tools.data_models.forecast_report import ForecastReport
 from forecasting_tools.data_models.questions import BinaryQuestion
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 
 
 class BinaryReport(ForecastReport):

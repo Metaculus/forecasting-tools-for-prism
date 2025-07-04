@@ -3,7 +3,7 @@ from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.forecast_bots.official_bots.q3_template_bot import (
     Q3TemplateBot2024,
 )
-from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
+from forecasting_tools.helpers.smart_searcher import SmartSearcher
 
 
 class Q3TemplateWithExa(Q3TemplateBot2024):

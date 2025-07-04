@@ -8,8 +8,8 @@ from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
-from forecasting_tools.benchmarking.bot_optimizer import BotOptimizer
-from forecasting_tools.benchmarking.prompt_data_models import ResearchTool
+from forecasting_tools.auto_optimizers.bot_optimizer import BotOptimizer
+from forecasting_tools.auto_optimizers.prompt_data_models import ResearchTool
 
 logger = logging.getLogger(__name__)
 

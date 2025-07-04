@@ -14,7 +14,7 @@ from forecasting_tools.ai_models.agent_wrappers import (
     general_trace_or_span,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
-from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
+from forecasting_tools.auto_optimizers.prompt_data_models import PromptIdea
 from forecasting_tools.forecast_helpers.structure_output import (
     structure_output,
 )
@@ -135,7 +135,8 @@ class PromptOptimizer:
 
         for iteration_num in range(self.iterations):
             with general_trace_or_span(
-                f"Prompt Optimizer Iteration {iteration_num + 1}"
+                f"Prompt Optimizer Iteration {iteration_num + 1}",
+                data={"survivors": [s.model_dump() for s in survivors]},
             ):
                 logger.info(
                     f"Starting iteration {iteration_num + 1}/{self.iterations} - Current population size: {len(offspring_prompts)}"
@@ -231,6 +232,7 @@ class PromptOptimizer:
                 You are an expert prompt engineer. Your task is to generate {num_mutations_to_generate} new PROMPT IDEAS by mutating an existing prompt.
                 Your ideas are being used to optimize this prompt using a Genetic Algorithm inspired approach.
                 We are highlighting exploration over exploitation, but do want to strike a balance.
+                Do not number the ideas (the idea title will be extracted and shared directly)
 
                 # Purpose of Prompt
                 {self.prompt_purpose_explanation}
@@ -271,10 +273,10 @@ class PromptOptimizer:
 
                 # Format
                 **Mutated Idea Title 1**
-                New idea for prompt mutation 1, specifying in detail how to implement the prompt reflecting the target variation.
+                New idea for prompt mutation 1, specifying in detail how to implement the prompt reflecting the target variation. The implementor will not be shown the original prompt.
 
                 **Mutated Idea Title 2**
-                New idea for prompt mutation 2, specifying in detail how to implement the prompt reflecting the target variation.
+                New idea for prompt mutation 2, specifying in detail how to implement the prompt reflecting the target variation. The implementor will not be shown the original prompt.
                 ...
                 (up to {num_mutations_to_generate} ideas)
                 """

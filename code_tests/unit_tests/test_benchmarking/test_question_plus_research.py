@@ -3,7 +3,7 @@ import pytest
 from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
     ForecastingTestManager,
 )
-from forecasting_tools.benchmarking.question_plus_research import (
+from forecasting_tools.data_models.question_plus_research import (
     QuestionPlusResearch,
     ResearchItem,
     ResearchType,

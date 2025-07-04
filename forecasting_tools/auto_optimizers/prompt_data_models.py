@@ -33,7 +33,7 @@ class BotConfig:
 
 
 @dataclass
-class EvaluatedPrompt:
+class EvaluatedBot:
     bot_config: BotConfig
     benchmark: BenchmarkForBot
 
@@ -41,22 +41,14 @@ class EvaluatedPrompt:
     def score(self) -> float:
         return self.benchmark.average_expected_baseline_score
 
-    @property
-    def prompt_text(self) -> str:
-        return self.bot_config.reasoning_prompt_template
-
 
 @dataclass
 class BotEvaluation:
-    evaluated_prompts: list[EvaluatedPrompt]
+    evaluated_prompts: list[EvaluatedBot]
 
     @property
-    def best_prompt(self) -> EvaluatedPrompt:
+    def best_bot(self) -> EvaluatedBot:
         sorted_evaluated_prompts = sorted(
             self.evaluated_prompts, key=lambda x: x.score, reverse=True
         )
         return sorted_evaluated_prompts[0]
-
-    @property
-    def best_prompt_text(self) -> str:
-        return self.best_prompt.prompt_text

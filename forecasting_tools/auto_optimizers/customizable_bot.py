@@ -10,19 +10,19 @@ from forecasting_tools.ai_models.agent_wrappers import (
     AiAgent,
 )
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.prompt_data_models import (
+from forecasting_tools.auto_optimizers.prompt_data_models import (
     PromptIdea,
     ResearchTool,
-)
-from forecasting_tools.benchmarking.question_plus_research import (
-    QuestionPlusResearch,
-    ResearchType,
 )
 from forecasting_tools.data_models.forecast_report import ReasonedPrediction
 from forecasting_tools.data_models.multiple_choice_report import (
     PredictedOptionList,
 )
 from forecasting_tools.data_models.numeric_report import NumericDistribution
+from forecasting_tools.data_models.question_plus_research import (
+    QuestionPlusResearch,
+    ResearchType,
+)
 from forecasting_tools.data_models.questions import (
     BinaryQuestion,
     MetaculusQuestion,
@@ -209,6 +209,7 @@ class CustomizableBot(ForecastBot):
             if snapshot.question == question
         ]
         if len(matching_snapshots) == 1:
+            assert self.research_type is not None
             return matching_snapshots[0].get_research_for_type(
                 self.research_type
             )

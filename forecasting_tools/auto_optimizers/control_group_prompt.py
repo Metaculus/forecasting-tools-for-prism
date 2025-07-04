@@ -1,5 +1,5 @@
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
-from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
+from forecasting_tools.auto_optimizers.customizable_bot import CustomizableBot
 
 
 class ControlPrompt:

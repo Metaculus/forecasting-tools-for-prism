@@ -6,8 +6,8 @@ from forecasting_tools.agents_and_tools.misc_tools import (
     query_asknews,
 )
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.bot_optimizer import BotOptimizer
-from forecasting_tools.benchmarking.prompt_data_models import ResearchTool
+from forecasting_tools.auto_optimizers.bot_optimizer import BotOptimizer
+from forecasting_tools.auto_optimizers.prompt_data_models import ResearchTool
 from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.util.custom_logger import CustomLogger
 

@@ -2,21 +2,23 @@ import logging
 
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
-from forecasting_tools.benchmarking.bot_evaluator import BotEvaluator
-from forecasting_tools.benchmarking.control_group_prompt import ControlPrompt
-from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
-from forecasting_tools.benchmarking.prompt_data_models import (
+from forecasting_tools.auto_optimizers.bot_evaluator import BotEvaluator
+from forecasting_tools.auto_optimizers.control_group_prompt import (
+    ControlPrompt,
+)
+from forecasting_tools.auto_optimizers.customizable_bot import CustomizableBot
+from forecasting_tools.auto_optimizers.prompt_data_models import (
     BotConfig,
     ResearchTool,
 )
-from forecasting_tools.benchmarking.prompt_optimizer import (
+from forecasting_tools.auto_optimizers.prompt_optimizer import (
     ImplementedPrompt,
     OptimizationRun,
     PromptOptimizer,
     PromptScore,
     ScoredPrompt,
 )
+from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
 from forecasting_tools.data_models.questions import MetaculusQuestion
 
 logger = logging.getLogger(__name__)

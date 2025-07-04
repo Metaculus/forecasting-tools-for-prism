@@ -3,17 +3,19 @@ import logging
 import typeguard
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
-from forecasting_tools.benchmarking.benchmarker import Benchmarker
-from forecasting_tools.benchmarking.control_group_prompt import ControlPrompt
-from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
-from forecasting_tools.benchmarking.prompt_data_models import (
+from forecasting_tools.auto_optimizers.control_group_prompt import (
+    ControlPrompt,
+)
+from forecasting_tools.auto_optimizers.customizable_bot import CustomizableBot
+from forecasting_tools.auto_optimizers.prompt_data_models import (
     BotConfig,
     BotEvaluation,
-    EvaluatedPrompt,
+    EvaluatedBot,
     PromptIdea,
 )
-from forecasting_tools.benchmarking.question_plus_research import (
+from forecasting_tools.benchmarking.benchmark_for_bot import BenchmarkForBot
+from forecasting_tools.benchmarking.benchmarker import Benchmarker
+from forecasting_tools.data_models.question_plus_research import (
     QuestionPlusResearch,
     ResearchType,
 )
@@ -66,14 +68,14 @@ class BotEvaluator:
             file_path_to_save_reports=self.file_or_folder_to_save_benchmarks,
         )
         benchmarks = await benchmarker.run_benchmark()
-        evaluated_prompts: list[EvaluatedPrompt] = []
+        evaluated_prompts: list[EvaluatedBot] = []
         for config, benchmark in zip(configurations, benchmarks):
             benchmark.forecast_bot_class_name = (
                 config.originating_idea.short_name.replace(" ", "_")
             )
             if len(benchmark.forecast_reports) > 0:
                 evaluated_prompts.append(
-                    EvaluatedPrompt(bot_config=config, benchmark=benchmark)
+                    EvaluatedBot(bot_config=config, benchmark=benchmark)
                 )
             else:
                 logger.error(

@@ -2,8 +2,8 @@ import asyncio
 import logging
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.bot_evaluator import BotEvaluator
-from forecasting_tools.benchmarking.question_plus_research import (
+from forecasting_tools.auto_optimizers.bot_evaluator import BotEvaluator
+from forecasting_tools.data_models.question_plus_research import (
     QuestionPlusResearch,
     ResearchType,
 )
@@ -77,7 +77,7 @@ async def run_higher_model_evaluation() -> None:
             logger.info(f"Cost: {evaluated_prompt.benchmark.total_cost}")
             logger.info(f"Score: {evaluated_prompt.score}")
 
-        logger.info(f"Best prompt: {evaluation_result.best_prompt}")
+        logger.info(f"Best prompt: {evaluation_result.best_bot}")
 
 
 if __name__ == "__main__":

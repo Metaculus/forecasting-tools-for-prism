@@ -7,13 +7,15 @@ from forecasting_tools.agents_and_tools.misc_tools import (
     perplexity_quick_search,
 )
 from forecasting_tools.ai_models.agent_wrappers import agent_tool
-from forecasting_tools.benchmarking.control_group_prompt import ControlPrompt
-from forecasting_tools.benchmarking.customizable_bot import CustomizableBot
-from forecasting_tools.benchmarking.prompt_data_models import (
+from forecasting_tools.auto_optimizers.control_group_prompt import (
+    ControlPrompt,
+)
+from forecasting_tools.auto_optimizers.customizable_bot import CustomizableBot
+from forecasting_tools.auto_optimizers.prompt_data_models import (
     PromptIdea,
     ResearchTool,
 )
-from forecasting_tools.benchmarking.question_plus_research import ResearchType
+from forecasting_tools.data_models.question_plus_research import ResearchType
 
 
 async def test_customizable_bot_runs() -> None:

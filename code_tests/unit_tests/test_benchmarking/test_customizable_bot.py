@@ -7,12 +7,12 @@ from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
 )
 from forecasting_tools.ai_models.agent_wrappers import agent_tool
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.customizable_bot import (
+from forecasting_tools.auto_optimizers.customizable_bot import (
     CustomizableBot,
     ResearchTool,
 )
-from forecasting_tools.benchmarking.prompt_data_models import PromptIdea
-from forecasting_tools.benchmarking.question_plus_research import (
+from forecasting_tools.auto_optimizers.prompt_data_models import PromptIdea
+from forecasting_tools.data_models.question_plus_research import (
     QuestionPlusResearch,
     ResearchItem,
     ResearchType,

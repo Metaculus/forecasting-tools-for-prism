@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
+from code_tests.unit_tests.forecasting_test_manager import (
     ForecastingTestManager,
 )
 from forecasting_tools.ai_models.agent_wrappers import agent_tool

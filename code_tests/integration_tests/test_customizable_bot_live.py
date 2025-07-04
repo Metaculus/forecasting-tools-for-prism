@@ -1,6 +1,6 @@
 import pytest
 
-from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
+from code_tests.unit_tests.forecasting_test_manager import (
     ForecastingTestManager,
 )
 from forecasting_tools.agents_and_tools.minor_tools import (

@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
+from code_tests.unit_tests.forecasting_test_manager import (
     ForecastingTestManager,
     MockBot,
 )

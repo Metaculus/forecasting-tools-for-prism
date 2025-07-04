@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 import typeguard
 
-from code_tests.unit_tests.test_forecasting.forecasting_test_manager import (
+from code_tests.unit_tests.forecasting_test_manager import (
     ForecastingTestManager,
 )
 from forecasting_tools.data_models.data_organizer import DataOrganizer

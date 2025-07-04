@@ -13,6 +13,7 @@ from forecasting_tools.agents_and_tools.question_generators.generated_question i
 from forecasting_tools.agents_and_tools.question_generators.simple_question import (
     SimpleQuestion,
 )
+from forecasting_tools.agents_and_tools.smart_searcher import SmartSearcher
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.data_models.data_organizer import (
@@ -23,7 +24,6 @@ from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 from forecasting_tools.forecast_bots.official_bots.q1_template_bot import (
     Q1TemplateBot2025,
 )
-from forecasting_tools.helpers.smart_searcher import SmartSearcher
 
 logger = logging.getLogger(__name__)
 

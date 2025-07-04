@@ -3,8 +3,8 @@ import re
 
 import pytest
 
+from forecasting_tools.agents_and_tools.smart_searcher import SmartSearcher
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.helpers.smart_searcher import SmartSearcher
 
 logger = logging.getLogger(__name__)
 

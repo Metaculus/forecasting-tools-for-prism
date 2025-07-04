@@ -24,6 +24,9 @@ from forecasting_tools.agents_and_tools.question_generators.question_generator i
 from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
     TopicGenerator as TopicGenerator,
 )
+from forecasting_tools.agents_and_tools.smart_searcher import (
+    SmartSearcher as SmartSearcher,
+)
 from forecasting_tools.ai_models.ai_utils.ai_misc import (
     clean_indents as clean_indents,
 )
@@ -139,9 +142,6 @@ from forecasting_tools.helpers.metaculus_api import (
 )
 from forecasting_tools.helpers.prediction_extractor import (
     PredictionExtractor as PredictionExtractor,
-)
-from forecasting_tools.helpers.smart_searcher import (
-    SmartSearcher as SmartSearcher,
 )
 
 nest_asyncio.apply()

@@ -1,6 +1,6 @@
 import urllib.parse
 
-from forecasting_tools.helpers.smart_searcher import ExaHighlightQuote
+from forecasting_tools.agents_and_tools.smart_searcher import ExaHighlightQuote
 
 
 class WorksCitedCreator:

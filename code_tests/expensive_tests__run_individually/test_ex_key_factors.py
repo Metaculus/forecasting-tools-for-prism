@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from forecasting_tools.agents_and_tools.key_factors_researcher import (
+from forecasting_tools.agents_and_tools.research.key_factors_researcher import (
     KeyFactorsResearcher,
     ScoredKeyFactor,
 )

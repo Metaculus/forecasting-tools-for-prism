@@ -5,7 +5,9 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from forecasting_tools.agents_and_tools.smart_searcher import SmartSearcher
+from forecasting_tools.agents_and_tools.research.smart_searcher import (
+    SmartSearcher,
+)
 from forecasting_tools.ai_models.agent_wrappers import agent_tool
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm

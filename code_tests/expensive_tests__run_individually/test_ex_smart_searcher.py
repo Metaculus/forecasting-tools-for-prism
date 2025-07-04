@@ -3,7 +3,9 @@ import logging
 from code_tests.utilities_for_tests.coroutine_testing import (
     assert_coroutines_run_under_x_times_duration_of_benchmark,
 )
-from forecasting_tools.agents_and_tools.smart_searcher import SmartSearcher
+from forecasting_tools.agents_and_tools.research.smart_searcher import (
+    SmartSearcher,
+)
 
 logger = logging.getLogger(__name__)
 

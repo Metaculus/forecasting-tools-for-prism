@@ -1,6 +1,8 @@
 import pytest
 
-from forecasting_tools.agents_and_tools.find_a_dataset import DatasetFinder
+from forecasting_tools.agents_and_tools.research.find_a_dataset import (
+    DatasetFinder,
+)
 from forecasting_tools.ai_models.agent_wrappers import (
     AgentRunner,
     AgentSdkLlm,

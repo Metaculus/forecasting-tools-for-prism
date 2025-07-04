@@ -4,7 +4,9 @@ from typing import NamedTuple
 from forecasting_tools.agents_and_tools.deprecated.general_researcher import (
     GeneralResearcher,
 )
-from forecasting_tools.agents_and_tools.smart_searcher import SmartSearcher
+from forecasting_tools.agents_and_tools.research.smart_searcher import (
+    SmartSearcher,
+)
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 
 

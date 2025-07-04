@@ -5,7 +5,9 @@ import os
 from datetime import datetime
 from typing import Literal
 
-from forecasting_tools.agents_and_tools.smart_searcher import SmartSearcher
+from forecasting_tools.agents_and_tools.research.smart_searcher import (
+    SmartSearcher,
+)
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.data_models.forecast_report import ReasonedPrediction

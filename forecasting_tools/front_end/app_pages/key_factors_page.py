@@ -14,7 +14,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 top_level_dir = os.path.abspath(os.path.join(current_dir, "../../../"))
 sys.path.append(top_level_dir)
 
-from forecasting_tools.agents_and_tools.key_factors_researcher import (
+from forecasting_tools.agents_and_tools.research.key_factors_researcher import (
     KeyFactorsResearcher,
     ScoredKeyFactor,
 )

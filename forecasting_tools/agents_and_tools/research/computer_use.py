@@ -10,7 +10,7 @@ from hyperbrowser.models import (
 )
 from pydantic import BaseModel
 
-from forecasting_tools.agents_and_tools.hosted_file import HostedFile
+from forecasting_tools.agents_and_tools.other.hosted_file import HostedFile
 from forecasting_tools.ai_models.agent_wrappers import agent_tool
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 

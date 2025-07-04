@@ -9,13 +9,6 @@ import streamlit as st
 from openai.types.responses import ResponseTextDeltaEvent
 from pydantic import BaseModel, Field
 
-from forecasting_tools.agents_and_tools.computer_use import ComputerUse
-from forecasting_tools.agents_and_tools.data_analyzer import DataAnalyzer
-from forecasting_tools.agents_and_tools.find_a_dataset import DatasetFinder
-from forecasting_tools.agents_and_tools.hosted_file import (
-    FileToUpload,
-    HostedFile,
-)
 from forecasting_tools.agents_and_tools.misc_tools import (
     create_tool_for_forecasting_bot,
     grab_open_questions_from_tournament,
@@ -24,6 +17,11 @@ from forecasting_tools.agents_and_tools.misc_tools import (
     perplexity_quick_search,
     query_asknews,
     smart_searcher_search,
+)
+from forecasting_tools.agents_and_tools.other.data_analyzer import DataAnalyzer
+from forecasting_tools.agents_and_tools.other.hosted_file import (
+    FileToUpload,
+    HostedFile,
 )
 from forecasting_tools.agents_and_tools.question_generators.info_hazard_identifier import (
     InfoHazardIdentifier,
@@ -36,6 +34,12 @@ from forecasting_tools.agents_and_tools.question_generators.question_operational
 )
 from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
     TopicGenerator,
+)
+from forecasting_tools.agents_and_tools.research.computer_use import (
+    ComputerUse,
+)
+from forecasting_tools.agents_and_tools.research.find_a_dataset import (
+    DatasetFinder,
 )
 from forecasting_tools.ai_models.agent_wrappers import (
     AgentRunner,

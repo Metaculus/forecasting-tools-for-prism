@@ -362,3 +362,36 @@ def test_conflicting_summarize_research_and_use_summary_raises() -> None:
             enable_summarize_research=False,
             use_research_summary_to_forecast=True,
         )
+
+
+async def test_research_fits_with_research_markdown_section() -> None:
+    bot = MockBot()
+    test_question = ForecastingTestManager.get_fake_binary_question()
+    expected_research = "### Finding 1\nContent 1\n### Finding 2\nContent 2"
+
+    async def mock_research(*args, **kwargs) -> str:  # NOSONAR
+        return "# Finding 1\nContent 1\n# Finding 2\nContent 2"
+
+    bot.run_research = mock_research
+    report = await bot.forecast_question(test_question)
+    assert (
+        expected_research in report.research.strip()
+    ), "Assuming research section has heading of 2, there should be a heading of 3 for the inner part"
+
+    async def mock_research_2(*args, **kwargs) -> str:  # NOSONAR
+        return "#### Finding 1\nContent 1\n#### Finding 2\nContent 2"
+
+    bot.run_research = mock_research_2
+    report = await bot.forecast_question(test_question)
+    assert (
+        expected_research in report.research.strip()
+    ), "Assuming research section has heading of 2, there should be a heading of 3 for the inner part"
+
+    async def mock_research_3(*args, **kwargs) -> str:  # NOSONAR
+        return "### Finding 1\nContent 1\n### Finding 2\nContent 2"
+
+    bot.run_research = mock_research_3
+    report = await bot.forecast_question(test_question)
+    assert (
+        expected_research in report.research.strip()
+    ), "Assuming research section has heading of 2, there should be a heading of 3 for the inner part"

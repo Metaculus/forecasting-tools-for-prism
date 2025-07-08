@@ -15,39 +15,7 @@ class MarkdownTree(BaseModel):
     title: str | None
     section_content: str
     sub_sections: list[MarkdownTree]
-
-    @model_validator(mode="after")
-    def validate_level(self: MarkdownTree) -> MarkdownTree:
-        if self.level < 0:
-            raise ValueError(f"Level {self.level} must be greater than 0")
-
-        return self
-
-    @model_validator(mode="after")
-    def validate_subsection_levels(self: MarkdownTree) -> MarkdownTree:
-        for subsection in self.sub_sections:
-            if subsection.level <= self.level:
-                raise ValueError(
-                    f"Subsection level {subsection.level} must be greater than parent section level {self.level}"
-                )
-        return self
-
-    @model_validator(mode="after")
-    def validate_section_content_hashtags(self: MarkdownTree) -> MarkdownTree:
-        if self.level > 0 and self.section_content:
-            lines = self.section_content.splitlines()
-            first_line = lines[0].strip()
-            hashtag_count = len(first_line) - len(first_line.lstrip("#"))
-            if hashtag_count != self.level:
-                raise ValueError(
-                    f"Section content starts with {hashtag_count} hashtags but header level is {self.level}"
-                )
-            for non_first_line in lines[1:]:
-                if non_first_line.startswith("#"):
-                    raise ValueError(
-                        f"Section content contains a line that starts with a hashtag that is not the header line: {non_first_line}"
-                    )
-        return self
+    # See validation functions at bottom of file
 
     @property
     def text_of_section_and_subsections(self) -> str:
@@ -101,7 +69,7 @@ class MarkdownTree(BaseModel):
         text_of_section = report_section.section_content
         stripped_text = text_of_section.lstrip("#")
         text_with_new_heading = (
-            f"{'#' * target_heading_level}{stripped_text}".lstrip()
+            f"{'#' * target_heading_level} {stripped_text.lstrip()}"
         )
         report_section.section_content = text_with_new_heading
         for subsection in report_section.sub_sections:
@@ -215,3 +183,36 @@ class MarkdownTree(BaseModel):
         if not first_section.section_content:
             return sections[1:]
         return sections
+
+    @model_validator(mode="after")
+    def validate_level(self: MarkdownTree) -> MarkdownTree:
+        if self.level < 0:
+            raise ValueError(f"Level {self.level} must be greater than 0")
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_subsection_levels(self: MarkdownTree) -> MarkdownTree:
+        for subsection in self.sub_sections:
+            if subsection.level <= self.level:
+                raise ValueError(
+                    f"Subsection level {subsection.level} must be greater than parent section level {self.level}"
+                )
+        return self
+
+    @model_validator(mode="after")
+    def validate_section_content_hashtags(self: MarkdownTree) -> MarkdownTree:
+        if self.level > 0 and self.section_content:
+            lines = self.section_content.splitlines()
+            first_line = lines[0].strip()
+            hashtag_count = len(first_line) - len(first_line.lstrip("#"))
+            if hashtag_count != self.level:
+                raise ValueError(
+                    f"Section content starts with {hashtag_count} hashtags but header level is {self.level}"
+                )
+            for non_first_line in lines[1:]:
+                if non_first_line.startswith("#"):
+                    raise ValueError(
+                        f"Section content contains a line that starts with a hashtag that is not the header line: {non_first_line}"
+                    )
+        return self

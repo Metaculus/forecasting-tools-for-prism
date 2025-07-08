@@ -562,9 +562,9 @@ Content 2
             markdown
         )
         markdown_text = MarkdownTree.report_sections_to_markdown(
-            report_sections
+            report_sections, 3
         )
         assert (
             markdown_text.strip()
-            == "headerless content\n# Section 1\nContent 1"
+            == "headerless content\n### Section 1\nContent 1"
         )

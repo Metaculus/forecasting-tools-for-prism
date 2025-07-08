@@ -38,6 +38,7 @@ from forecasting_tools.data_models.questions import (
     MultipleChoiceQuestion,
     NumericQuestion,
 )
+from forecasting_tools.data_models.report_section import MarkdownTree
 from forecasting_tools.helpers.metaculus_api import MetaculusApi
 
 T = TypeVar("T")
@@ -599,16 +600,10 @@ class ForecastBot(ABC):
         cls, report_number: int, predicted_research: ResearchWithPredictions
     ) -> str:
         markdown = predicted_research.research_report
-        lines = markdown.split("\n")
-        modified_content = ""
-
-        for line in lines:
-            if line.startswith("#"):
-                heading_level = len(line) - len(line.lstrip("#"))
-                content = line[heading_level:].lstrip()
-                new_heading_level = max(3, heading_level + 2)
-                line = f"{'#' * new_heading_level} {content}"
-            modified_content += line + "\n"
+        sections = MarkdownTree.turn_markdown_into_report_sections(markdown)
+        modified_content = MarkdownTree.report_sections_to_markdown(
+            sections, 3
+        )
         final_content = (
             f"## Report {report_number} Research\n{modified_content}"
         )

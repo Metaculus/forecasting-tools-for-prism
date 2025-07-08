@@ -220,6 +220,9 @@ class MetaculusApi:
         num_forecasters_gte: int = 30,
         error_if_question_target_missed: bool = True,
     ) -> list[BinaryQuestion]:
+        logger.info(
+            f"Retrieving {num_of_questions_to_return} benchmark questions"
+        )
         date_into_future = (
             datetime.now() + timedelta(days=days_to_resolve_in)
             if days_to_resolve_in

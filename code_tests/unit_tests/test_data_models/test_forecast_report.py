@@ -12,7 +12,7 @@ from forecasting_tools.data_models.multiple_choice_report import (
     MultipleChoiceReport,
 )
 from forecasting_tools.data_models.numeric_report import NumericReport
-from forecasting_tools.data_models.report_section import ReportSection
+from forecasting_tools.data_models.report_section import MarkdownTree
 
 
 def test_metaculus_report_is_jsonable() -> None:
@@ -126,7 +126,7 @@ def test_report_sections_are_parsed_correctly() -> None:
     )
 
 
-def combine_all_section_content(sections: list[ReportSection]) -> str:
+def combine_all_section_content(sections: list[MarkdownTree]) -> str:
     # Only goes to level h4 in the report list
     combined_content = ""
     for section in sections:

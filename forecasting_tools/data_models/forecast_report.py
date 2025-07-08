@@ -8,7 +8,7 @@ import typeguard
 from pydantic import BaseModel, Field, field_validator
 
 from forecasting_tools.data_models.questions import MetaculusQuestion
-from forecasting_tools.data_models.report_section import ReportSection
+from forecasting_tools.data_models.report_section import MarkdownTree
 from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)
@@ -44,8 +44,8 @@ class ForecastReport(BaseModel, Jsonable, ABC):
         return v
 
     @property
-    def report_sections(self) -> list[ReportSection]:
-        return ReportSection.turn_markdown_into_report_sections(
+    def report_sections(self) -> list[MarkdownTree]:
+        return MarkdownTree.turn_markdown_into_report_sections(
             self.explanation
         )
 
@@ -140,7 +140,7 @@ class ForecastReport(BaseModel, Jsonable, ABC):
 
     def _get_and_validate_section(
         self, index: int, expected_word: str
-    ) -> ReportSection:
+    ) -> MarkdownTree:
         if len(self.report_sections) <= index:
             raise ValueError(f"Report must have at least {index + 1} sections")
         section = self.report_sections[index]

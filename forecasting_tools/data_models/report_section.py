@@ -1,15 +1,53 @@
 from __future__ import annotations
 
+import copy
 import re
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 
-class ReportSection(BaseModel):
-    level: int
+class MarkdownTree(BaseModel):
+    """
+    Markdown text broken up into a tree of markdown sections where sections are divided by headers.
+    """
+
+    level: int  # Equal to number of hashtags in the header line (can be 0 if at beginning of document)
     title: str | None
     section_content: str
-    sub_sections: list[ReportSection]
+    sub_sections: list[MarkdownTree]
+
+    @model_validator(mode="after")
+    def validate_level(self: MarkdownTree) -> MarkdownTree:
+        if self.level < 0:
+            raise ValueError(f"Level {self.level} must be greater than 0")
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_subsection_levels(self: MarkdownTree) -> MarkdownTree:
+        for subsection in self.sub_sections:
+            if subsection.level <= self.level:
+                raise ValueError(
+                    f"Subsection level {subsection.level} must be greater than parent section level {self.level}"
+                )
+        return self
+
+    @model_validator(mode="after")
+    def validate_section_content_hashtags(self: MarkdownTree) -> MarkdownTree:
+        if self.level > 0 and self.section_content:
+            lines = self.section_content.splitlines()
+            first_line = lines[0].strip()
+            hashtag_count = len(first_line) - len(first_line.lstrip("#"))
+            if hashtag_count != self.level:
+                raise ValueError(
+                    f"Section content starts with {hashtag_count} hashtags but header level is {self.level}"
+                )
+            for non_first_line in lines[1:]:
+                if non_first_line.startswith("#"):
+                    raise ValueError(
+                        f"Section content contains a line that starts with a hashtag that is not the header line: {non_first_line}"
+                    )
+        return self
 
     @property
     def text_of_section_and_subsections(self) -> str:
@@ -19,12 +57,66 @@ class ReportSection(BaseModel):
         return text
 
     @classmethod
+    def report_sections_to_markdown(
+        cls,
+        report_sections: list[MarkdownTree],
+        top_heading_level: int | None = None,
+    ) -> str:
+        if top_heading_level is None:
+            return "\n".join(
+                [
+                    section.text_of_section_and_subsections
+                    for section in report_sections
+                ]
+            ).strip()
+
+        if report_sections[0].level != min(
+            section.level for section in report_sections
+        ):
+            raise ValueError(
+                "First section must be at the highest heading level in order to change the heading levels recursively"
+            )
+
+        copied_report_sections = copy.deepcopy(report_sections)
+        updated_sections = []
+        for section in copied_report_sections:
+            updated_sections.append(
+                cls._update_headings_recursively(section, top_heading_level)
+            )
+
+        text = "\n".join(
+            [
+                section.text_of_section_and_subsections
+                for section in updated_sections
+            ]
+        ).strip()
+        return text
+
+    @classmethod
+    def _update_headings_recursively(
+        cls,
+        report_section: MarkdownTree,
+        target_heading_level: int,
+    ) -> MarkdownTree:
+        text_of_section = report_section.section_content
+        stripped_text = text_of_section.lstrip("#")
+        text_with_new_heading = (
+            f"{'#' * target_heading_level}{stripped_text}".lstrip()
+        )
+        report_section.section_content = text_with_new_heading
+        for subsection in report_section.sub_sections:
+            cls._update_headings_recursively(
+                subsection, target_heading_level + 1
+            )
+        return report_section
+
+    @classmethod
     def turn_markdown_into_report_sections(
         cls, markdown: str
-    ) -> list[ReportSection]:
-        final_heirarchial_sections: list[ReportSection] = []
+    ) -> list[MarkdownTree]:
+        final_heirarchial_sections: list[MarkdownTree] = []
         lines = markdown.splitlines()
-        flattened_running_section_stack: list[ReportSection] = []
+        flattened_running_section_stack: list[MarkdownTree] = []
 
         for line in lines:
             line_is_header = re.match(r"^#{1,6} ", line)
@@ -60,7 +152,7 @@ class ReportSection(BaseModel):
                 active_section.section_content += f"\n{line}"
             elif should_create_intro_section_without_header:
                 final_heirarchial_sections.append(
-                    ReportSection(
+                    MarkdownTree(
                         level=0,
                         title=None,
                         section_content=line,
@@ -82,11 +174,11 @@ class ReportSection(BaseModel):
         return final_heirarchial_sections
 
     @staticmethod
-    def __create_new_section_using_header_line(line: str) -> ReportSection:
+    def __create_new_section_using_header_line(line: str) -> MarkdownTree:
         assert line.startswith("#")
         heading_level = line.count("#")
         title = line.strip("# ").strip()
-        section = ReportSection(
+        section = MarkdownTree(
             level=heading_level,
             title=title,
             section_content=line,
@@ -96,16 +188,16 @@ class ReportSection(BaseModel):
 
     @staticmethod
     def __remove_sections_from_stack_until_at_level_higher_than_new_section_level(
-        section_stack: list[ReportSection], current_level: int
+        section_stack: list[MarkdownTree], current_level: int
     ) -> None:
         while section_stack and section_stack[-1].level >= current_level:
             section_stack.pop()
 
     @staticmethod
     def __add_new_section_to_active_section_or_else_to_top_section_list(
-        running_section_stack: list[ReportSection],
-        final_sections: list[ReportSection],
-        new_section: ReportSection,
+        running_section_stack: list[MarkdownTree],
+        final_sections: list[MarkdownTree],
+        new_section: MarkdownTree,
     ) -> None:
         if running_section_stack:
             active_section = running_section_stack[-1]
@@ -115,8 +207,8 @@ class ReportSection(BaseModel):
 
     @staticmethod
     def __remove_first_section_if_empty(
-        sections: list[ReportSection],
-    ) -> list[ReportSection]:
+        sections: list[MarkdownTree],
+    ) -> list[MarkdownTree]:
         if not sections:
             return []
         first_section = sections[0]

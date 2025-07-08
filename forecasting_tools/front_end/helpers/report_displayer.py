@@ -8,7 +8,7 @@ from streamlit.delta_generator import DeltaGenerator
 
 from forecasting_tools.data_models.binary_report import BinaryReport
 from forecasting_tools.data_models.questions import BinaryQuestion
-from forecasting_tools.data_models.report_section import ReportSection
+from forecasting_tools.data_models.report_section import MarkdownTree
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +108,7 @@ class ReportDisplayer:
 
     @classmethod
     def __display_normal_tab(
-        cls, tab: DeltaGenerator, section: ReportSection
+        cls, tab: DeltaGenerator, section: MarkdownTree
     ) -> None:
         with tab:
             st.markdown(cls.clean_markdown(section.section_content))
@@ -165,7 +165,7 @@ class ReportDisplayer:
 
     @classmethod
     def __display_nested_sections(
-        cls, sections: list[ReportSection], level: int = 3
+        cls, sections: list[MarkdownTree], level: int = 3
     ) -> None:
         for section in sections:
             st.markdown(cls.clean_markdown(section.section_content))

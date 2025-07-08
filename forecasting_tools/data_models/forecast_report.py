@@ -7,8 +7,8 @@ from typing import Any, Generic, Sequence, TypeVar
 import typeguard
 from pydantic import BaseModel, Field, field_validator
 
+from forecasting_tools.data_models.markdown_tree import MarkdownTree
 from forecasting_tools.data_models.questions import MetaculusQuestion
-from forecasting_tools.data_models.report_section import MarkdownTree
 from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)

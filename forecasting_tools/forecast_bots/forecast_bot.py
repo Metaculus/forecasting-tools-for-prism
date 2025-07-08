@@ -27,6 +27,7 @@ from forecasting_tools.data_models.forecast_report import (
     ReasonedPrediction,
     ResearchWithPredictions,
 )
+from forecasting_tools.data_models.markdown_tree import MarkdownTree
 from forecasting_tools.data_models.multiple_choice_report import (
     PredictedOptionList,
 )
@@ -38,7 +39,6 @@ from forecasting_tools.data_models.questions import (
     MultipleChoiceQuestion,
     NumericQuestion,
 )
-from forecasting_tools.data_models.report_section import MarkdownTree
 from forecasting_tools.helpers.metaculus_api import MetaculusApi
 
 T = TypeVar("T")

@@ -3,7 +3,7 @@ import logging
 import pytest
 
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
-from forecasting_tools.data_models.report_section import MarkdownTree
+from forecasting_tools.data_models.markdown_tree import MarkdownTree
 
 logger = logging.getLogger(__name__)
 

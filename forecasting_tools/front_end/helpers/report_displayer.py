@@ -7,8 +7,8 @@ import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 
 from forecasting_tools.data_models.binary_report import BinaryReport
+from forecasting_tools.data_models.markdown_tree import MarkdownTree
 from forecasting_tools.data_models.questions import BinaryQuestion
-from forecasting_tools.data_models.report_section import MarkdownTree
 
 logger = logging.getLogger(__name__)
 

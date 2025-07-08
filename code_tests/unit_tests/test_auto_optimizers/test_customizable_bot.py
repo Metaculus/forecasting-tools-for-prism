@@ -66,8 +66,8 @@ def customizable_bot(
     research_snapshots: list[QuestionPlusResearch],
 ) -> CustomizableBot:
     return CustomizableBot(
-        reasoning_prompt=f"Test prompt with {{question_text}} and {{research}} {CustomizableBot.REQUIRED_REASONING_PROMPT_VARIABLES}",
-        research_prompt=f"Research prompt for {{question_text}} {CustomizableBot.REQUIRED_RESEARCH_PROMPT_VARIABLES}",
+        reasoning_prompt=f"Test prompt with {CustomizableBot.REQUIRED_REASONING_PROMPT_VARIABLES}",
+        research_prompt=f"Research prompt with {CustomizableBot.REQUIRED_RESEARCH_PROMPT_VARIABLES}",
         research_tools=[mock_research_tool],
         cached_research=research_snapshots,
         research_type=ResearchType.ASK_NEWS_SUMMARIES,
@@ -148,24 +148,24 @@ async def test_customizable_bot_raises_error_when_no_researcher_llm_configured(
     mock_llm: MagicMock,
     research_snapshots: list[QuestionPlusResearch],
 ) -> None:
-    bot = CustomizableBot(
-        reasoning_prompt="Test prompt",
-        research_prompt="Research prompt",
-        research_tools=[mock_research_tool],
-        cached_research=research_snapshots,
-        research_type=ResearchType.ASK_NEWS_SUMMARIES,
-        llms={"default": mock_llm},
-        originating_idea=PromptIdea(
-            short_name="Test idea",
-            full_text="Test idea process",
-        ),
-    )
-
-    question = ForecastingTestManager.get_fake_binary_question(
-        question_text="Q3 - not in snapshots"
-    )
-
     with pytest.raises(ValueError, match="LLM is undefined"):
+        bot = CustomizableBot(
+            reasoning_prompt="Test prompt",
+            research_prompt="Research prompt",
+            research_tools=[mock_research_tool],
+            cached_research=research_snapshots,
+            research_type=ResearchType.ASK_NEWS_SUMMARIES,
+            llms={"default": mock_llm},
+            originating_idea=PromptIdea(
+                short_name="Test idea",
+                full_text="Test idea process",
+            ),
+        )
+
+        question = ForecastingTestManager.get_fake_binary_question(
+            question_text="Q3 - not in snapshots"
+        )
+
         await bot.run_research(question)
 
 

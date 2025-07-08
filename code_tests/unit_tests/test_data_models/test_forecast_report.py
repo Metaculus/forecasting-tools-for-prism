@@ -8,11 +8,11 @@ from code_tests.unit_tests.forecasting_test_manager import (
 )
 from forecasting_tools.data_models.binary_report import BinaryReport
 from forecasting_tools.data_models.data_organizer import DataOrganizer
+from forecasting_tools.data_models.markdown_tree import MarkdownTree
 from forecasting_tools.data_models.multiple_choice_report import (
     MultipleChoiceReport,
 )
 from forecasting_tools.data_models.numeric_report import NumericReport
-from forecasting_tools.data_models.report_section import MarkdownTree
 
 
 def test_metaculus_report_is_jsonable() -> None:

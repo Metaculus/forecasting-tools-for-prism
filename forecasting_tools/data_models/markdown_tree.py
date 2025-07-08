@@ -67,10 +67,12 @@ class MarkdownTree(BaseModel):
         target_heading_level: int,
     ) -> MarkdownTree:
         text_of_section = report_section.section_content
-        stripped_text = text_of_section.lstrip("#")
-        text_with_new_heading = (
-            f"{'#' * target_heading_level} {stripped_text.lstrip()}"
-        )
+        if text_of_section.startswith("#"):
+            stripped_text = text_of_section.lstrip("#")
+            text_with_new_heading = f"{'#' * target_heading_level} {stripped_text.lstrip()}".lstrip()
+        else:
+            text_with_new_heading = text_of_section
+
         report_section.section_content = text_with_new_heading
         for subsection in report_section.sub_sections:
             cls._update_headings_recursively(

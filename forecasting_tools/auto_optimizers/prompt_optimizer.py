@@ -4,7 +4,7 @@ import asyncio
 import logging
 from typing import Any, Callable, Coroutine
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from forecasting_tools.agents_and_tools.minor_tools import (
     perplexity_pro_search,
@@ -15,7 +15,10 @@ from forecasting_tools.ai_models.agent_wrappers import (
     AiAgent,
     general_trace_or_span,
 )
-from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
+from forecasting_tools.ai_models.ai_utils.ai_misc import (
+    clean_indents,
+    retry_async_function,
+)
 from forecasting_tools.auto_optimizers.prompt_data_models import PromptIdea
 from forecasting_tools.helpers.structure_output import structure_output
 
@@ -26,6 +29,7 @@ class ImplementedPrompt(BaseModel):
     text: str
     idea: PromptIdea
     originating_ideas: list[PromptIdea]
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class PromptScore(BaseModel):
@@ -59,6 +63,7 @@ class PromptOptimizer:
         template_variables_explanation: e.g. "The prompt should include the following variables: {{question_text}}, {{background_info}}, {{resolution_criteria}}, {{fine_print}}, {{today}}, {{research}}. Always include at least one of each of these and only include research once"
         mutation_considerations: e.g. "As you develop the prompt consider: - Research formats and length (consider all varieties) - Research sources (consider all varieties) - Reasoning formats and length (consider all varieties)"
         format_scores_func: Async function that takes a list of scored prompts and returns a string of the scores and metadata. This is inserted into the prompt during prompt ideation.
+        validate_prompt_func: Async function that takes a prompt and raises an exception if the prompt is invalid.
         initial_prompt_population_size: Target size of the initial prompt population
         survivors_per_iteration: Number of best prompts to keep after each iteration
         mutated_prompts_per_survivor: Number of mutated prompts to generate from each survivor
@@ -80,6 +85,9 @@ class PromptOptimizer:
         format_scores_func: (
             Callable[[ScoredPrompt], Coroutine[Any, Any, str]] | None
         ),
+        validate_prompt_func: (
+            Callable[[ImplementedPrompt], Coroutine[Any, Any, None]] | None
+        ),
         initial_prompt_population_size: int = 25,
         survivors_per_iteration: int = 5,
         mutated_prompts_per_survivor: int = 4,
@@ -90,6 +98,7 @@ class PromptOptimizer:
         self.ideation_llm_name = ideation_llm_name
         self.prompt_to_scores_func = prompts_to_scores_func
         self.format_scores_func = format_scores_func
+        self.validate_prompt_func = validate_prompt_func
         self.prompt_purpose_explanation = prompt_purpose_explanation
         self.prompt_requirements_explanation = prompt_requirements_explanation
         self.template_variables_explanation = template_variables_explanation
@@ -113,6 +122,9 @@ class PromptOptimizer:
 
     async def _create_optimized_prompt(self) -> OptimizationRun:
         with general_trace_or_span("Initial Population Generation"):
+            logger.info(
+                f"Generating initial prompt population of size {self.initial_prompt_population_size}"
+            )
             prompts_still_needed = self.initial_prompt_population_size - 1
             starting_prompts: list[ImplementedPrompt] = []
             if prompts_still_needed > 0:
@@ -178,24 +190,14 @@ class PromptOptimizer:
             self._mutate_prompt(ep.prompt, self.mutated_prompts_per_survivor)
             for ep in surviving_population
         ]
-        initial_mutation_results = await asyncio.gather(
-            *mutation_tasks, return_exceptions=True
-        )
-        mutation_results: list[list[ImplementedPrompt]] = [
-            result
-            for result in initial_mutation_results
-            if not isinstance(result, BaseException)
-        ]
+        mutation_results = await asyncio.gather(*mutation_tasks)
         for mutation_list in mutation_results:
             mutated_prompts.extend(mutation_list)
         logger.info(f"Generated {len(mutated_prompts)} mutated prompts.")
 
         bred_prompts: list[ImplementedPrompt] = []
-        try:
-            bred_prompts = await self._breed_prompts(surviving_population)
-        except Exception as e:
-            logger.error(f"Failed to breed prompts: {e}")
-            bred_prompts = []
+        bred_prompts = await self._breed_prompts(surviving_population)
+
         logger.info(f"Generated {len(bred_prompts)} bred prompts.")
 
         new_prompts = mutated_prompts + bred_prompts
@@ -209,6 +211,7 @@ class PromptOptimizer:
             ScoredPrompt(prompt=p, score=s) for p, s in zip(prompts, scores)
         ]
 
+    @retry_async_function(tries=3)
     async def _mutate_prompt(
         self,
         input_prompt: ScoredPrompt | ImplementedPrompt,
@@ -297,10 +300,9 @@ class PromptOptimizer:
         )
 
         if len(mutated_ideas) != num_mutations_to_generate:
-            logger.warning(
-                f"Requested {num_mutations_to_generate} mutation ideas, but got {len(mutated_ideas)}. Returning {mutated_ideas[:num_mutations_to_generate]}"
+            raise ValueError(
+                f"Requested {num_mutations_to_generate} mutation ideas, but got {len(mutated_ideas)}"
             )
-            mutated_ideas = mutated_ideas[:num_mutations_to_generate]
 
         implemented_prompts = await self._implement_prompt_ideas(
             mutated_ideas,
@@ -311,6 +313,7 @@ class PromptOptimizer:
         )
         return implemented_prompts
 
+    @retry_async_function(tries=3)
     async def _breed_prompts(
         self, parent_scored_prompts: list[ScoredPrompt]
     ) -> list[ImplementedPrompt]:
@@ -391,10 +394,9 @@ class PromptOptimizer:
         )
 
         if len(bred_ideas) != num_to_breed:
-            logger.warning(
-                f"Requested {num_to_breed} bred ideas, but got {len(bred_ideas)}. Returning {bred_ideas[:num_to_breed]}"
+            raise ValueError(
+                f"Requested {num_to_breed} bred ideas, but got {len(bred_ideas)}"
             )
-            bred_ideas = bred_ideas[:num_to_breed]
         new_prompts = await self._implement_prompt_ideas(
             bred_ideas,
             [[sp.prompt.idea for sp in parent_scored_prompts] * num_to_breed],
@@ -411,7 +413,7 @@ class PromptOptimizer:
     ) -> list[ImplementedPrompt]:
         if len(prompt_ideas) != len(originating_ideas):
             raise ValueError(
-                f"Number of prompt ideas ({len(prompt_ideas)}) does not match number of originating ideas ({len(originating_ideas)})"
+                f"Number of prompt ideas ({len(prompt_ideas)}) does not match number of originating ideas ({len(originating_ideas)}). Cannot map these together."
             )
         tasks = [
             self._implement_prompt_idea(idea, originating_ideas)
@@ -431,6 +433,7 @@ class PromptOptimizer:
 
         return implemented_prompts
 
+    @retry_async_function(tries=3)
     async def _implement_prompt_idea(
         self, prompt_idea: PromptIdea, originating_ideas: list[PromptIdea]
     ) -> ImplementedPrompt:
@@ -476,6 +479,8 @@ class PromptOptimizer:
             idea=prompt_idea,
             originating_ideas=originating_ideas,
         )
+        if self.validate_prompt_func is not None:
+            await self.validate_prompt_func(implemented_prompt)
         return implemented_prompt
 
     def _log_duplicate_prompts(self, prompts: list[ScoredPrompt]) -> None:

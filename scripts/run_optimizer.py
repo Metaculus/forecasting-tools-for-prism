@@ -1,13 +1,12 @@
 import asyncio
 import logging
 
-from forecasting_tools.agents_and_tools.minor_tools import (
-    perplexity_quick_search_low_context,
-    query_asknews,
-)
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.auto_optimizers.bot_optimizer import BotOptimizer
-from forecasting_tools.auto_optimizers.prompt_data_models import ResearchTool
+from forecasting_tools.auto_optimizers.prompt_data_models import (
+    ResearchTool,
+    ToolName,
+)
 from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.util.custom_logger import CustomLogger
 
@@ -22,35 +21,41 @@ async def run_optimizer() -> None:
     )
     research_tools = [
         ResearchTool(
-            tool=perplexity_quick_search_low_context,
+            tool_name=ToolName.PERPLEXITY_LOW_COST,
             max_calls=1,
         ),
         ResearchTool(
-            tool=query_asknews,
+            tool_name=ToolName.ASKNEWS,
             max_calls=1,
         ),
     ]
     ideation_llm = "openrouter/google/gemini-2.5-pro-preview"
-    research_coordination_llm = GeneralLlm(
-        model="openrouter/openai/gpt-4.1-mini", temperature=0.3
-    )
+    research_coordination_llm = "openrouter/openai/gpt-4.1-mini"
     reasoning_llm = GeneralLlm(
         model="openrouter/openai/gpt-4.1-mini", temperature=0.3
     )
     questions_batch_size = 112
     num_iterations_per_run = 3
     remove_background_info = True
+    initial_prompt_population_size = 20
+    survivors_per_iteration = 5
+    mutated_prompts_per_survivor = 3
+    breeded_prompts_per_iteration = 5
 
     # ------ Run the optimizer -----
     await BotOptimizer.optimize_a_combined_research_and_reasoning_prompt(
         questions=questions,
         research_tools=research_tools,
-        research_agent_llm=research_coordination_llm,
+        research_agent_llm_name=research_coordination_llm,
         reasoning_llm=reasoning_llm,
         questions_batch_size=questions_batch_size,
         num_iterations_per_run=num_iterations_per_run,
-        ideation_llm=ideation_llm,
+        ideation_llm_name=ideation_llm,
         remove_background_info=remove_background_info,
+        initial_prompt_population_size=initial_prompt_population_size,
+        survivors_per_iteration=survivors_per_iteration,
+        mutated_prompts_per_survivor=mutated_prompts_per_survivor,
+        breeded_prompts_per_iteration=breeded_prompts_per_iteration,
     )
 
 

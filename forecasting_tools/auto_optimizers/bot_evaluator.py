@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 
 import typeguard
 
@@ -9,8 +10,6 @@ from forecasting_tools.auto_optimizers.control_group_prompt import (
 from forecasting_tools.auto_optimizers.customizable_bot import CustomizableBot
 from forecasting_tools.auto_optimizers.prompt_data_models import (
     BotConfig,
-    BotEvaluation,
-    EvaluatedBot,
     PromptIdea,
 )
 from forecasting_tools.auto_optimizers.question_plus_research import (
@@ -23,6 +22,28 @@ from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class EvaluatedBot:
+    bot_config: BotConfig
+    benchmark: BenchmarkForBot
+
+    @property
+    def score(self) -> float:
+        return self.benchmark.average_expected_baseline_score
+
+
+@dataclass
+class BotEvaluation:
+    evaluated_bots: list[EvaluatedBot]
+
+    @property
+    def best_bot(self) -> EvaluatedBot:
+        sorted_evaluated_prompts = sorted(
+            self.evaluated_bots, key=lambda x: x.score, reverse=True
+        )
+        return sorted_evaluated_prompts[0]
 
 
 class BotEvaluator:
@@ -68,20 +89,24 @@ class BotEvaluator:
             file_path_to_save_reports=self.file_or_folder_to_save_benchmarks,
         )
         benchmarks = await benchmarker.run_benchmark()
-        evaluated_prompts: list[EvaluatedBot] = []
+        if all(
+            len(benchmark.forecast_reports) == 0 for benchmark in benchmarks
+        ):
+            raise ValueError("All benchmarks have no forecast reports")
+        evaluated_bots: list[EvaluatedBot] = []
         for config, benchmark in zip(configurations, benchmarks):
             benchmark.forecast_bot_class_name = (
                 config.originating_idea.short_name.replace(" ", "_")
             )
             if len(benchmark.forecast_reports) > 0:
-                evaluated_prompts.append(
+                evaluated_bots.append(
                     EvaluatedBot(bot_config=config, benchmark=benchmark)
                 )
             else:
                 logger.error(
                     f"Not including {config.originating_idea.short_name} in evaluation report because it has no forecast reports"
                 )
-        return BotEvaluation(evaluated_prompts=evaluated_prompts)
+        return BotEvaluation(evaluated_bots=evaluated_bots)
 
     def _configs_to_bots(
         self, configs: list[BotConfig]
@@ -107,6 +132,8 @@ class BotEvaluator:
                 predictions_per_research_report=config.predictions_per_research_report,
                 llms={
                     "default": config.reasoning_llm,
+                    "researcher": config.research_llm,
+                    "summarizer": None,
                 },
                 publish_reports_to_metaculus=False,
                 enable_summarize_research=False,

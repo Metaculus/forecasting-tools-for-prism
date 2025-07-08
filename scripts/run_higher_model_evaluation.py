@@ -65,7 +65,7 @@ async def run_higher_model_evaluation() -> None:
             research_reports_per_question=research_reports_per_question,
             num_predictions_per_research_report=num_predictions_per_research_report,
         )
-        for evaluated_prompt in evaluation_result.evaluated_prompts:
+        for evaluated_prompt in evaluation_result.evaluated_bots:
             logger.info(
                 f"Name: {evaluated_prompt.bot_config.originating_idea.short_name}"
             )

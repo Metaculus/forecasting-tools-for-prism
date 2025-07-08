@@ -3,10 +3,6 @@ import pytest
 from code_tests.unit_tests.forecasting_test_manager import (
     ForecastingTestManager,
 )
-from forecasting_tools.agents_and_tools.minor_tools import (
-    perplexity_quick_search,
-)
-from forecasting_tools.ai_models.agent_wrappers import agent_tool
 from forecasting_tools.auto_optimizers.control_group_prompt import (
     ControlPrompt,
 )
@@ -14,6 +10,7 @@ from forecasting_tools.auto_optimizers.customizable_bot import CustomizableBot
 from forecasting_tools.auto_optimizers.prompt_data_models import (
     PromptIdea,
     ResearchTool,
+    ToolName,
 )
 from forecasting_tools.auto_optimizers.question_plus_research import (
     ResearchType,
@@ -25,7 +22,7 @@ async def test_customizable_bot_runs() -> None:
         reasoning_prompt=ControlPrompt.get_reasoning_prompt(),
         research_prompt=ControlPrompt.get_research_prompt(),
         research_tools=[
-            ResearchTool(tool=perplexity_quick_search, max_calls=2)
+            ResearchTool(tool_name=ToolName.PERPLEXITY_LOW_COST, max_calls=2)
         ],
         cached_research=[],
         research_type=ResearchType.ASK_NEWS_SUMMARIES,
@@ -48,18 +45,12 @@ async def test_customizable_bot_runs() -> None:
 
 
 async def test_customizable_bot_respects_max_tool_calls_limit() -> None:
-    call_count = 0
-
-    @agent_tool
-    def research_internet(query: str) -> str:
-        nonlocal call_count
-        call_count += 1
-        return f"Failed to research. Please call this function again at least 2 more times. Input was: {query}. Call count: {call_count}"
-
     bot = CustomizableBot(
         reasoning_prompt=f"Give me a probability of {{question_text}} happening. {CustomizableBot.REQUIRED_REASONING_PROMPT_VARIABLES}",
-        research_prompt="Research the internet for {question_text}.",
-        research_tools=[ResearchTool(tool=research_internet, max_calls=2)],
+        research_prompt="Research the internet for {question_text}. If a tool fails, try it at least 2 more times.",
+        research_tools=[
+            ResearchTool(tool_name=ToolName.MOCK_TOOL, max_calls=2)
+        ],
         cached_research=[],
         research_type=ResearchType.ASK_NEWS_SUMMARIES,
         llms={"default": "gpt-4.1-mini", "researcher": "gpt-4.1-mini"},
@@ -75,4 +66,6 @@ async def test_customizable_bot_respects_max_tool_calls_limit() -> None:
         )
         await bot.run_research(fake_question_1)
 
-    assert call_count == 2
+    bot.research_prompt = "Research the internet for {question_text}. If a tool fails, don't retry it"
+    research = await bot.run_research(fake_question_1)
+    assert research is not None

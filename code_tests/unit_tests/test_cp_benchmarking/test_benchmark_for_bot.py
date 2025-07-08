@@ -12,8 +12,8 @@ from forecasting_tools.data_models.numeric_report import NumericReport
 @pytest.mark.parametrize(
     "file_path",
     [
-        "code_tests/unit_tests/test_data_models/forecasting_test_data/benchmark_object_examples.json",
-        "code_tests/unit_tests/test_data_models/forecasting_test_data/benchmark_object_examples.jsonl",
+        "code_tests/unit_tests/test_cp_benchmarking/test_data/benchmark_object_examples.json",
+        "code_tests/unit_tests/test_cp_benchmarking/test_data/benchmark_object_examples.jsonl",
     ],
 )
 def test_benchmark_for_bot(file_path: str) -> None:

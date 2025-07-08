@@ -110,6 +110,13 @@ class CustomizableBot(ForecastBot):
         "{background_info}",
         "{fine_print}",
     ]
+    ALL_POSSIBLE_VARIABLES = list(
+        set(
+            REQUIRED_REASONING_PROMPT_VARIABLES
+            + OPTIONAL_RESEARCH_PROMPT_VARIABLES
+            + REQUIRED_RESEARCH_PROMPT_VARIABLES
+        )
+    )
     RESEARCH_REASONING_SPLIT_STRING = (
         "<<<< RESEARCH PROMPT ABOVE, REASONING PROMPT BELOW >>>>"
     )
@@ -135,37 +142,19 @@ class CustomizableBot(ForecastBot):
         )
         self.reasoning_prompt = reasoning_prompt
         self.research_prompt = research_prompt
-        self.tools = research_tools
+        self.research_tools = research_tools
         self.research_type = research_type
         self.originating_idea = originating_idea  # As of May 26, 2025 This parameter is logged in the config for the bot, even if not used here.
 
-        if cached_research:
-            unique_questions = list(
-                set(
-                    [
-                        snapshot.question.question_text
-                        for snapshot in cached_research
-                    ]
-                )
-            )
-            if len(unique_questions) != len(cached_research):
-                raise ValueError(
-                    "Research snapshots must have unique questions"
-                )
-            if research_type is None:
-                raise ValueError(
-                    "Research type must be provided if cached research is provided"
-                )
-        else:
-            if research_type is not None:
-                raise ValueError(
-                    "Research type must be None if cached research is None"
-                )
+        self._validate_cache(cached_research)
+
+        if not self.get_llm("researcher"):
+            raise ValueError("Research LLM must be provided")
 
         self.cached_research = cached_research or []
 
-        self._validate_research_prompt(self.research_prompt)
-        self._validate_reasoning_prompt(self.reasoning_prompt)
+        self.validate_research_prompt(self.research_prompt)
+        self.validate_reasoning_prompt(self.reasoning_prompt)
 
     @classmethod
     def _llm_config_defaults(cls) -> dict[str, str | GeneralLlm | None]:
@@ -180,7 +169,7 @@ class CustomizableBot(ForecastBot):
     ) -> list[AgentTool]:
         tracked_tools = []
 
-        for research_tool in self.tools:
+        for research_tool in self.research_tools:
             original_tool = research_tool.tool
             tracked_tool = copy.deepcopy(original_tool)
             original_on_invoke = tracked_tool.on_invoke_tool
@@ -217,7 +206,7 @@ class CustomizableBot(ForecastBot):
                 f"Expected 1 research snapshot for question {question.page_url}, got {len(matching_snapshots)}"
             )
 
-        if not self.tools:
+        if not self.research_tools:
             raise ValueError(
                 f"No research snapshot found for question {question.page_url} and no research tools available"
             )
@@ -231,14 +220,11 @@ class CustomizableBot(ForecastBot):
         if not isinstance(research_llm, str):
             raise ValueError("Research LLM must be a string model name")
 
-        formatted_prompt = self.research_prompt.format(
-            question_text=question.question_text,
-            background_info=question.background_info,
-            resolution_criteria=question.resolution_criteria,
-            fine_print=question.fine_print,
+        formatted_prompt = self._format_prompt_with_question(
+            self.research_prompt, question, None
         )
 
-        usage_tracker = ToolUsageTracker(self.tools)
+        usage_tracker = ToolUsageTracker(self.research_tools)
         tracked_tools = self._create_tracked_tools(usage_tracker)
 
         agent = AiAgent(
@@ -264,25 +250,8 @@ class CustomizableBot(ForecastBot):
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str
     ) -> ReasonedPrediction[float]:
-        required_variables = [
-            "{question_text}",
-            "{resolution_criteria}",
-            "{today}",
-            "{research}",
-        ]
-
-        for required_variable in required_variables:
-            if required_variable not in self.reasoning_prompt:
-                raise ValueError(
-                    f"Prompt {self.reasoning_prompt} does not contain {required_variable}"
-                )
-        prompt = self.reasoning_prompt.format(
-            question_text=question.question_text,
-            background_info=question.background_info,
-            resolution_criteria=question.resolution_criteria,
-            fine_print=question.fine_print,
-            today=question.date_accessed.strftime("%Y-%m-%d"),
-            research=research,
+        prompt = self._format_prompt_with_question(
+            self.reasoning_prompt, question, research
         )
         reasoning = await self.get_llm("default", "llm").invoke(prompt)
         logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
@@ -314,6 +283,41 @@ class CustomizableBot(ForecastBot):
         raise NotImplementedError()
 
     @classmethod
+    def _format_prompt_with_question(
+        cls, prompt: str, question: MetaculusQuestion, research: str | None
+    ) -> str:
+        combined_question_info = (
+            question.question_text
+            + (question.background_info or "")
+            + (question.resolution_criteria or "")
+            + (question.fine_print or "")
+        )
+        for variable in cls.ALL_POSSIBLE_VARIABLES:
+            if f"{{{variable}}}" in combined_question_info:
+                raise ValueError(
+                    f"There is a template variable in the question itself: {variable}. Combined text: {combined_question_info}"
+                )
+
+        formatted_prompt = prompt.replace(
+            "{question_text}", question.question_text
+        )
+        formatted_prompt = formatted_prompt.replace(
+            "{background_info}", question.background_info or "None"
+        )
+        formatted_prompt = formatted_prompt.replace(
+            "{resolution_criteria}", question.resolution_criteria or "None"
+        )
+        formatted_prompt = formatted_prompt.replace(
+            "{fine_print}", question.fine_print or "None"
+        )
+        formatted_prompt = formatted_prompt.replace(
+            "{today}", question.date_accessed.strftime("%Y-%m-%d")
+        )
+        if research is not None:
+            formatted_prompt = formatted_prompt.replace("{research}", research)
+        return formatted_prompt
+
+    @classmethod
     def split_combined_research_reasoning_prompt(
         cls,
         combined_prompt: str,
@@ -322,15 +326,19 @@ class CustomizableBot(ForecastBot):
         Utility function to split a combined research and reasoning prompt into a separate research prompt and a reasoning prompt.
         Also validates that the template variables are present in the prompts.
         """
+        if cls.RESEARCH_REASONING_SPLIT_STRING not in combined_prompt:
+            raise ValueError(
+                f"Combined prompt does not contain {cls.RESEARCH_REASONING_SPLIT_STRING}. Prompt: {combined_prompt}"
+            )
         research_prompt, reasoning_prompt = combined_prompt.split(
             CustomizableBot.RESEARCH_REASONING_SPLIT_STRING
         )
-        cls._validate_research_prompt(research_prompt)
-        cls._validate_reasoning_prompt(reasoning_prompt)
+        cls.validate_research_prompt(research_prompt)
+        cls.validate_reasoning_prompt(reasoning_prompt)
         return research_prompt, reasoning_prompt
 
     @classmethod
-    def _validate_research_prompt(cls, research_prompt: str) -> None:
+    def validate_research_prompt(cls, research_prompt: str) -> None:
         cls._validate_template_variables(
             research_prompt,
             required_variables=CustomizableBot.REQUIRED_RESEARCH_PROMPT_VARIABLES,
@@ -341,11 +349,12 @@ class CustomizableBot(ForecastBot):
             )
 
     @classmethod
-    def _validate_reasoning_prompt(cls, reasoning_prompt: str) -> None:
+    def validate_reasoning_prompt(cls, reasoning_prompt: str) -> None:
         cls._validate_template_variables(
             reasoning_prompt,
             required_variables=CustomizableBot.REQUIRED_REASONING_PROMPT_VARIABLES,
         )
+        cls._validate_no_duplicate_variables(reasoning_prompt, "{research}")
 
     @classmethod
     def _validate_template_variables(
@@ -358,3 +367,70 @@ class CustomizableBot(ForecastBot):
             raise ValueError(
                 f"Generated prompt is missing template variables: {missing_vars}. Prompt: {prompt}"
             )
+
+    @classmethod
+    def _validate_no_duplicate_variables(
+        cls, prompt: str, specific_variable: str | None = None
+    ) -> None:
+        import re
+
+        variable_pattern = r"\{[^}]+\}"
+        variables = re.findall(variable_pattern, prompt)
+        variable_counts = {}
+
+        for variable in variables:
+            variable_counts[variable] = variable_counts.get(variable, 0) + 1
+
+        if specific_variable is not None:
+            if (
+                specific_variable in variable_counts
+                and variable_counts[specific_variable] > 1
+            ):
+                raise ValueError(
+                    f"Prompt contains duplicate template variable '{specific_variable}' (found {variable_counts[specific_variable]} times). Prompt: {prompt}"
+                )
+        else:
+            duplicates = [
+                var for var, count in variable_counts.items() if count > 1
+            ]
+            if duplicates:
+                raise ValueError(
+                    f"Prompt contains duplicate template variables: {duplicates}. Prompt: {prompt}"
+                )
+
+    @classmethod
+    def validate_combined_research_reasoning_prompt(
+        cls, combined_prompt: str
+    ) -> None:
+
+        research_prompt, reasoning_prompt = (
+            cls.split_combined_research_reasoning_prompt(combined_prompt)
+        )
+        cls.validate_research_prompt(research_prompt)
+        cls.validate_reasoning_prompt(reasoning_prompt)
+
+    def _validate_cache(
+        self, cached_research: list[QuestionPlusResearch] | None
+    ) -> None:
+        if cached_research:
+            unique_questions = list(
+                set(
+                    [
+                        snapshot.question.question_text
+                        for snapshot in cached_research
+                    ]
+                )
+            )
+            if len(unique_questions) != len(cached_research):
+                raise ValueError(
+                    "Research snapshots must have unique questions"
+                )
+            if self.research_type is None:
+                raise ValueError(
+                    "Research type must be provided if cached research is provided"
+                )
+        else:
+            if self.research_type is not None:
+                raise ValueError(
+                    "Research type must be None if cached research is None"
+                )

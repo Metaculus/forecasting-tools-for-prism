@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 
 from pydantic import BaseModel
 
-from forecasting_tools.ai_models.agent_wrappers import AgentTool
+from forecasting_tools.agents_and_tools.minor_tools import (
+    perplexity_pro_search,
+    perplexity_quick_search_low_context,
+    query_asknews,
+)
+from forecasting_tools.ai_models.agent_wrappers import AgentTool, agent_tool
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.cp_benchmarking.benchmark_for_bot import BenchmarkForBot
 
 
 class PromptIdea(BaseModel):
@@ -14,10 +19,37 @@ class PromptIdea(BaseModel):
     full_text: str
 
 
-@dataclass
-class ResearchTool:
-    tool: AgentTool
+class ToolName(str, Enum):
+    ASKNEWS = "query_asknews"
+    PERPLEXITY_LOW_COST = "perplexity_quick_search_low_context"
+    PERPLEXITY_PRO_SEARCH = "perplexity_pro_search"
+    MOCK_TOOL = "mock_tool"
+
+
+@agent_tool
+def mock_tool(query: str) -> str:
+    """
+    Mock tool that returns a research result
+    """
+    return f"No search result found for {query} (mock tool)"
+
+
+class ResearchTool(BaseModel):
+    tool_name: ToolName
     max_calls: int | None
+
+    @property
+    def name_to_tool_map(self) -> dict[ToolName, AgentTool]:
+        return {
+            ToolName.ASKNEWS: query_asknews,
+            ToolName.PERPLEXITY_LOW_COST: perplexity_quick_search_low_context,
+            ToolName.PERPLEXITY_PRO_SEARCH: perplexity_pro_search,
+            ToolName.MOCK_TOOL: mock_tool,
+        }
+
+    @property
+    def tool(self) -> AgentTool:
+        return self.name_to_tool_map[self.tool_name]
 
 
 @dataclass
@@ -30,25 +62,3 @@ class BotConfig:
     originating_idea: PromptIdea
     research_reports_per_question: int = 1
     predictions_per_research_report: int = 1
-
-
-@dataclass
-class EvaluatedBot:
-    bot_config: BotConfig
-    benchmark: BenchmarkForBot
-
-    @property
-    def score(self) -> float:
-        return self.benchmark.average_expected_baseline_score
-
-
-@dataclass
-class BotEvaluation:
-    evaluated_prompts: list[EvaluatedBot]
-
-    @property
-    def best_bot(self) -> EvaluatedBot:
-        sorted_evaluated_prompts = sorted(
-            self.evaluated_prompts, key=lambda x: x.score, reverse=True
-        )
-        return sorted_evaluated_prompts[0]

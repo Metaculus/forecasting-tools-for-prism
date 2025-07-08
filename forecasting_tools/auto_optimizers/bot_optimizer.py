@@ -31,12 +31,16 @@ class BotOptimizer:
         cls,
         questions: list[MetaculusQuestion],
         research_tools: list[ResearchTool],
-        research_agent_llm: GeneralLlm,
+        research_agent_llm_name: str,
         reasoning_llm: GeneralLlm,
         questions_batch_size: int,
         num_iterations_per_run: int,
-        ideation_llm: str,
+        ideation_llm_name: str,
         remove_background_info: bool,
+        initial_prompt_population_size: int = 20,
+        survivors_per_iteration: int = 5,
+        mutated_prompts_per_survivor: int = 3,
+        breeded_prompts_per_iteration: int = 5,
     ) -> OptimizationRun:
         logger.info(f"Loaded {len(questions)} questions")
         questions = [question.model_copy(deep=True) for question in questions]
@@ -128,13 +132,13 @@ class BotOptimizer:
                         reasoning_prompt_template=reasoning_prompt,
                         research_prompt_template=research_prompt,
                         research_tools=research_tools,
-                        research_llm=research_agent_llm,
+                        research_llm=research_agent_llm_name,
                         reasoning_llm=reasoning_llm,
                         originating_idea=combined_prompt.idea,
                     )
                 )
             evaluation_result = await evaluator.evaluate_bot_configs(configs)
-            evaluated_prompts = evaluation_result.evaluated_prompts
+            evaluated_prompts = evaluation_result.evaluated_bots
             assert len(evaluated_prompts) == len(
                 combined_prompts
             ), f"Number of evaluated prompts ({len(evaluated_prompts)}) does not match number of combined prompts ({len(combined_prompts)})"
@@ -151,20 +155,26 @@ class BotOptimizer:
                 )
             return prompt_scores
 
+        async def validate_prompt(prompt: ImplementedPrompt) -> None:
+            CustomizableBot.validate_combined_research_reasoning_prompt(
+                prompt.text
+            )
+
         optimizer = PromptOptimizer(
             initial_prompt=ControlPrompt.get_combined_prompt(),
             iterations=num_iterations_per_run,
-            ideation_llm_name=ideation_llm,
+            ideation_llm_name=ideation_llm_name,
             prompts_to_scores_func=evaluate_combined_research_and_reasoning_prompts,
             prompt_purpose_explanation=prompt_purpose_explanation,
             prompt_requirements_explanation=prompt_requirements_explanation,
             template_variables_explanation=template_variables_explanation,
             mutation_considerations=mutation_considerations,
             format_scores_func=cls._format_worst_scores_and_context,
-            initial_prompt_population_size=20,
-            survivors_per_iteration=5,
-            mutated_prompts_per_survivor=3,
-            breeded_prompts_per_iteration=5,
+            validate_prompt_func=validate_prompt,
+            initial_prompt_population_size=initial_prompt_population_size,
+            survivors_per_iteration=survivors_per_iteration,
+            mutated_prompts_per_survivor=mutated_prompts_per_survivor,
+            breeded_prompts_per_iteration=breeded_prompts_per_iteration,
         )
 
         logger.info("Starting optimization run")
@@ -183,7 +193,6 @@ class BotOptimizer:
         for sp in best_prompts:
             message += "\n\n------------------------------"
             message += f"\nScore: {sp.score.value}"
-            message += f"\nIteration: {sp.prompt.iteration_number}"
             message += f"\nIdea Name: {sp.prompt.idea.short_name}"
             message += f"\nIdea Description: {sp.prompt.idea.full_text}"
             message += f"\nPrompt: {sp.prompt.text}"

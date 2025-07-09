@@ -18,7 +18,6 @@ from agents import generation_span as gs
 from agents import trace
 from agents.extensions.models.litellm_model import LitellmModel
 from agents.stream_events import StreamEvent
-from agents.tracing.setup import GLOBAL_TRACE_PROVIDER
 from agents.tracing.span_data import CustomSpanData
 from agents.tracing.traces import TraceImpl
 
@@ -47,15 +46,26 @@ class AgentSdkLlm(LitellmModel):
 def general_trace_or_span(
     name: str, data: dict[str, Any] | None = None, **kwargs
 ) -> Span[CustomSpanData] | Trace:
-    try:
-        current_trace = GLOBAL_TRACE_PROVIDER.get_current_trace()
-    except Exception as e:
-        logger.warning(f"Error getting current trace: {e}")
-        current_trace = None
-    if current_trace:
-        return custom_span(name, data, **kwargs)
-    else:
-        return trace(workflow_name=name, metadata=data, **kwargs)
+    class NoOpContextManager:
+        """A context manager that does nothing when used in with statements"""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return False
+
+    return NoOpContextManager()
+    # Disabled till I'm able to debug this more
+    # try:
+    #     current_trace = GLOBAL_TRACE_PROVIDER.get_current_trace()
+    # except Exception as e:
+    #     logger.warning(f"Error getting current trace: {e}")
+    #     current_trace = None
+    # if current_trace:
+    #     return custom_span(name, data, **kwargs)
+    # else:
+    #     return trace(workflow_name=name, metadata=data, **kwargs)
 
 
 AgentRunner = Runner  # Alias for Runner for later extension

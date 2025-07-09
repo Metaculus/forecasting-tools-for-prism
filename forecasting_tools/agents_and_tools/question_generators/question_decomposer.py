@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel
 
@@ -238,7 +237,6 @@ class QuestionDecomposer:
         number_of_questions: int,
         related_research: str | None,
         additional_criteria_or_context_from_user: str | None,
-        mode: Literal["fast", "deep"],
     ) -> DecompositionResult:
         """
         Decompose a topic or question into a list of sub questions that helps to understand and forecast the topic or question. Can run in "fast" or "deep" mode.
@@ -249,34 +247,22 @@ class QuestionDecomposer:
             number_of_questions: The number of questions to decompose the topic or question into. Default to 5.
             related_research: If you are running in fast mode, include as much research as possible to help make a good question (especially include important drivers/influencers of the topic). Otherwise set research to None by default
             additional_criteria_or_context_from_user: Additional criteria or context from the user (default to None)
-            mode: The mode to use for the decomposition. Default to "deep" mode as most people will want this.
 
         Returns:
             A DecompositionResult object with the following fields:
             - reasoning: The reasoning for the decomposition.
             - questions: A list of sub questions and metadata
         """
-
-        if mode == "fast":
-            task = QuestionDecomposer().decompose_into_questions_fast(
-                fuzzy_topic_or_question=fuzzy_topic_or_question,
-                number_of_questions=number_of_questions,
-                additional_context=additional_criteria_or_context_from_user,
-                related_research=related_research,
+        if related_research:
+            logger.debug(
+                "You are running in deep mode but you have provided related research. This may lower the quality of the questions if this is provided by LLMs."
             )
-        elif mode == "deep":
-            if related_research:
-                logger.debug(
-                    "You are running in deep mode but you have provided related research. This may lower the quality of the questions if this is provided by LLMs."
-                )
-            task = QuestionDecomposer().decompose_into_questions_deep(
-                fuzzy_topic_or_question=fuzzy_topic_or_question,
-                number_of_questions=number_of_questions,
-                additional_context=additional_criteria_or_context_from_user,
-                related_research=related_research,
-            )
-        else:
-            raise ValueError(f"Invalid mode: {mode}")
+        task = QuestionDecomposer().decompose_into_questions_deep(
+            fuzzy_topic_or_question=fuzzy_topic_or_question,
+            number_of_questions=number_of_questions,
+            additional_context=additional_criteria_or_context_from_user,
+            related_research=related_research,
+        )
         return asyncio.run(task)
 
 

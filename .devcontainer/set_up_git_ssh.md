@@ -92,6 +92,7 @@ Let me know if you hit any errors or want to configure it for a specific project
 Run
 
 ```
+  git config --global --add safe.directory /workspaces/forecasting-tools
   git config --global user.email "you@example.com"
   git config --global user.name "Your Name"
 ```

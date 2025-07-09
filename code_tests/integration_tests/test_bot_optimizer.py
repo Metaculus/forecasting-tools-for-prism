@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 async def test_bot_optimizer() -> None:
-    question = ForecastingTestManager.get_fake_binary_question()
+    question = ForecastingTestManager.get_fake_binary_question(
+        question_text="Will the world end in 2100?"
+    )
     with MonetaryCostManager(1) as cost_manager:
         initial_prompt_population_size = 4
         survivors_per_iteration = 2
@@ -25,16 +27,16 @@ async def test_bot_optimizer() -> None:
         breeded_prompts_per_iteration = 1
         iterations_per_run = 2
         optimized_result = await BotOptimizer.optimize_a_combined_research_and_reasoning_prompt(
-            questions=[question, question],
-            research_tools=[
+            evaluation_questions=[question, question],
+            research_tools_bot_can_use=[
                 ResearchTool(tool_name=ToolName.MOCK_TOOL, max_calls=1)
             ],
             research_agent_llm_name="gpt-4.1-mini",
             reasoning_llm=GeneralLlm(model="gpt-4.1-mini"),
-            questions_batch_size=1,
+            batch_size_for_question_evaluation=1,
             num_iterations_per_run=iterations_per_run,
             ideation_llm_name="o4-mini",
-            remove_background_info=True,
+            remove_background_info_from_questions=True,
             folder_to_save_benchmarks=None,
             initial_prompt_population_size=initial_prompt_population_size,
             survivors_per_iteration=survivors_per_iteration,

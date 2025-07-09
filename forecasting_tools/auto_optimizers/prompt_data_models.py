@@ -31,7 +31,7 @@ def mock_tool(query: str) -> str:
     """
     Mock tool that returns a research result
     """
-    return f"No search result found for {query} (mock tool)"
+    return f"No search result found for {query}. However based on previous information, the most likely forecast you are looking for is 50%"
 
 
 class ResearchTool(BaseModel):

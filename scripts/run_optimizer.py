@@ -45,14 +45,14 @@ async def run_optimizer() -> None:
 
     # ------ Run the optimizer -----
     await BotOptimizer.optimize_a_combined_research_and_reasoning_prompt(
-        questions=questions,
-        research_tools=research_tools,
+        evaluation_questions=questions,
+        research_tools_bot_can_use=research_tools,
         research_agent_llm_name=research_coordination_llm,
         reasoning_llm=reasoning_llm,
-        questions_batch_size=questions_batch_size,
+        batch_size_for_question_evaluation=questions_batch_size,
         num_iterations_per_run=num_iterations_per_run,
         ideation_llm_name=ideation_llm,
-        remove_background_info=remove_background_info,
+        remove_background_info_from_questions=remove_background_info,
         folder_to_save_benchmarks=folder_to_save_benchmarks,
         initial_prompt_population_size=initial_prompt_population_size,
         survivors_per_iteration=survivors_per_iteration,

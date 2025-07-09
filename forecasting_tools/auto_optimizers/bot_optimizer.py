@@ -29,26 +29,28 @@ logger = logging.getLogger(__name__)
 class BotOptimizer:
 
     @classmethod
-    async def optimize_a_combined_research_and_reasoning_prompt(
+    async def optimize_a_combined_research_and_reasoning_prompt(  # NOSONAR
         cls,
-        questions: list[MetaculusQuestion],
-        research_tools: list[ResearchTool],
-        research_agent_llm_name: str,
+        research_agent_llm_name: str,  # e.g. "openai/gpt-4.1"
         reasoning_llm: GeneralLlm,
-        questions_batch_size: int,
-        num_iterations_per_run: int,
         ideation_llm_name: str,
-        remove_background_info: bool,
+        research_tools_bot_can_use: list[ResearchTool],
+        evaluation_questions: list[MetaculusQuestion],
+        remove_background_info_from_questions: bool,
+        batch_size_for_question_evaluation: int,
         folder_to_save_benchmarks: str | None,
+        num_iterations_per_run: int,
         initial_prompt_population_size: int = 20,
         survivors_per_iteration: int = 5,
         mutated_prompts_per_survivor: int = 3,
         breeded_prompts_per_iteration: int = 5,
     ) -> OptimizationRun:
-        logger.info(f"Loaded {len(questions)} questions")
-        questions = [question.model_copy(deep=True) for question in questions]
-        if remove_background_info:
-            for question in questions:
+        logger.info(f"Loaded {len(evaluation_questions)} questions")
+        evaluation_questions = [
+            question.model_copy(deep=True) for question in evaluation_questions
+        ]
+        if remove_background_info_from_questions:
+            for question in evaluation_questions:
                 question.background_info = None
         prompt_purpose_explanation = clean_indents(
             """
@@ -59,7 +61,7 @@ class BotOptimizer:
         research_tool_limits = "\n###".join(
             [
                 f"{tool.tool.name}\nMax calls allowed: {tool.max_calls}\nDescription: {tool.tool.description}"
-                for tool in research_tools
+                for tool in research_tools_bot_can_use
             ]
         )
         prompt_requirements_explanation = clean_indents(
@@ -115,9 +117,9 @@ class BotOptimizer:
         )
 
         evaluator = BotEvaluator(
-            input_questions=questions,
+            input_questions=evaluation_questions,
             research_type=None,
-            concurrent_evaluation_batch_size=questions_batch_size,
+            concurrent_evaluation_batch_size=batch_size_for_question_evaluation,
             file_or_folder_to_save_benchmarks=folder_to_save_benchmarks,
         )
 
@@ -135,7 +137,7 @@ class BotOptimizer:
                     BotConfig(
                         reasoning_prompt_template=reasoning_prompt,
                         research_prompt_template=research_prompt,
-                        research_tools=research_tools,
+                        research_tools=research_tools_bot_can_use,
                         research_llm=research_agent_llm_name,
                         reasoning_llm=reasoning_llm,
                         originating_idea=combined_prompt.idea,

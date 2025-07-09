@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 
 
 DEFAULT_MODEL: str = (
-    "openrouter/google/gemini-2.5-pro-preview"  # "openrouter/anthropic/claude-sonnet-4"
+    "openrouter/google/gemini-2.5-pro"  # "openrouter/anthropic/claude-sonnet-4"
 )
 MODEL_CHOICES: list[str] = [
     DEFAULT_MODEL,

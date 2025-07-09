@@ -60,5 +60,5 @@ class BotConfig:
     reasoning_llm: GeneralLlm | str
     research_llm: GeneralLlm | str
     originating_idea: PromptIdea
-    research_reports_per_question: int = 1
-    predictions_per_research_report: int = 1
+    research_reports_per_question: int
+    predictions_per_research_report: int

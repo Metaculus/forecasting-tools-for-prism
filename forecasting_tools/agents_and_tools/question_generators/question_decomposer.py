@@ -121,7 +121,8 @@ class QuestionDecomposer:
             ... etc ...
             ```
 
-            Make sure to cite everything! If you have a link, keep it (otherwise you plagerize)!
+            Make sure to cite EVERYTHING! If you have a link, keep it (otherwise you plagerize)!
+            Conversely, DO NOT share a link that you did not find in your own research!
 
             # Reiteration of your priorities
             The most important thing to get right is high VOI and high resolvability. Focus on these.
@@ -235,8 +236,8 @@ class QuestionDecomposer:
     def decompose_into_questions_tool(
         fuzzy_topic_or_question: str,
         number_of_questions: int,
-        related_research: str | None,
-        additional_criteria_or_context_from_user: str | None,
+        additional_criteria_or_context_from_user: str | None = None,
+        related_research: str | None = None,
     ) -> DecompositionResult:
         """
         Decompose a topic or question into a list of sub questions that helps to understand and forecast the topic or question. Can run in "fast" or "deep" mode.

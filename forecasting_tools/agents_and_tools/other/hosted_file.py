@@ -29,7 +29,11 @@ class HostedFile(BaseModel):
     def upload_files_to_openai(
         cls, file_data: list[FileToUpload]
     ) -> list[HostedFile]:
-        client = OpenAI()
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY is not set")
+
+        client = OpenAI(api_key=api_key)
         hosted_files = []
         for file_to_upload in file_data:
             file = client.files.create(
@@ -44,7 +48,7 @@ class HostedFile(BaseModel):
     def upload_zipped_files(cls, download_link: str) -> list[HostedFile]:
         # TODO: Handle zip bombs
         # Download zip file directly to memory
-        response = requests.get(download_link, stream=True)
+        response = requests.get(download_link, stream=True, timeout=60)
         response.raise_for_status()
 
         MAX_GB = 0.5

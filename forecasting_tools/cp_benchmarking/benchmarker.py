@@ -74,6 +74,7 @@ class Benchmarker:
             file_path_to_save_reports is not None
             and not file_path_to_save_reports.endswith("/")
             and not file_path_to_save_reports.endswith(".json")
+            and not file_path_to_save_reports.endswith(".jsonl")
         ):
             file_path_to_save_reports += "/"
         self._file_path_to_save_reports = file_path_to_save_reports

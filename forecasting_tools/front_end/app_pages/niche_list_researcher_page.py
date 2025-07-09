@@ -115,7 +115,7 @@ class NicheListResearchPage(ToolPage):
     @classmethod
     async def _display_outputs(cls, outputs: list[NicheListOutput]) -> None:
         for output in outputs:
-            with st.expander(f"{output.question_text}"):
+            with st.expander(f"{output.question_text}", expanded=True):
                 st.markdown(f"**Cost:** ${output.cost:.2f}")
                 st.markdown(
                     ReportDisplayer.clean_markdown(output.markdown_output)

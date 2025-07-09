@@ -42,10 +42,14 @@ class BotEvaluation:
 
     @property
     def best_bot(self) -> EvaluatedBot:
-        sorted_evaluated_prompts = sorted(
+        if not self.evaluated_bots:
+            raise ValueError(
+                "No evaluated bots available to determine the best bot"
+            )
+        sorted_evaluated_bots = sorted(
             self.evaluated_bots, key=lambda x: x.score, reverse=True
         )
-        return sorted_evaluated_prompts[0]
+        return sorted_evaluated_bots[0]
 
 
 class BotEvaluator:
@@ -199,6 +203,8 @@ class BotEvaluator:
                     short_name=f"{benchmark.forecast_bot_class_name}",
                     full_text=f"Evaluate the prompt from {benchmark.forecast_bot_class_name} (originally found from a different dataset/origin) with model {forecast_llm.model} and {len(self.evaluation_questions)} questions",
                 ),
+                predictions_per_research_report=num_predictions_per_research_report,
+                research_reports_per_question=research_reports_per_question,
             )
             configs.append(best_prompt_config)
         evaluation_result = await self.evaluate_bot_configs(configs)

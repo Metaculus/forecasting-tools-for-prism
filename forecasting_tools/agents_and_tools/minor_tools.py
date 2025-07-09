@@ -15,6 +15,7 @@ from forecasting_tools.helpers.metaculus_api import (
     MetaculusApi,
     MetaculusQuestion,
 )
+from forecasting_tools.util.misc import get_schema_of_base_model
 
 
 @agent_tool
@@ -27,7 +28,6 @@ async def query_asknews(topic: str) -> str:
     - URL
     - Date
     """
-    # TODO: Insert an if statement that will use Exa summaries rather than AskNews if AskNews keys are not enabled
     return await AskNewsSearcher().get_formatted_news_async(topic)
 
 
@@ -128,8 +128,13 @@ def create_tool_for_forecasting_bot(
         bot = bot_or_class
 
     description = clean_indents(
-        """
+        f"""
         Forecast a SimpleQuestion (simplified binary, numeric, or multiple choice question) using a forecasting bot.
+
+        Here is the structure of the SimpleQuestion:
+        ```
+        {get_schema_of_base_model(SimpleQuestion)}
+        ```
         """
     )
 

@@ -101,7 +101,8 @@ class EstimatorPage(ToolPage):
     async def _display_outputs(cls, outputs: list[EstimatorOutput]) -> None:
         for output in outputs:
             with st.expander(
-                f"Estimate for {output.estimate_type}: {int(output.number):,}"
+                f"Estimate for {output.estimate_type}: {int(output.number):,}",
+                expanded=True,
             ):
                 st.markdown(f"Cost: ${output.cost:.2f}")
                 st.markdown(output.markdown)

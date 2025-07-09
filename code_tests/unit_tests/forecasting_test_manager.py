@@ -114,7 +114,6 @@ class ForecastingTestManager:
 
     @staticmethod
     def quarterly_cup_is_not_active() -> bool:
-        # Quarterly cup is not active from the 1st to the 10th day of the quarter while the initial questions are being set
         current_date = datetime.now().date()
         day_of_month = current_date.day
         month = current_date.month

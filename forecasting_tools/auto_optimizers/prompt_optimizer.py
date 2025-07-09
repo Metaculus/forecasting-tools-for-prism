@@ -490,7 +490,10 @@ class PromptOptimizer:
 
     def _log_duplicate_prompts(self, prompts: list[ScoredPrompt]) -> None:
         for prompt in prompts:
+            count = 0
             if prompt.prompt.text in [ep.prompt.text for ep in prompts]:
+                count += 1
+            if count > 1:  # expect to find that the prompt matches itself
                 logger.warning(
-                    f"Duplicate prompt template found: {prompt.prompt.text}"
+                    f"Duplicate prompt template found: {prompt.prompt.text} {count - 1} times"
                 )

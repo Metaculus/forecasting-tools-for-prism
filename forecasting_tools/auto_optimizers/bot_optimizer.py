@@ -141,6 +141,8 @@ class BotOptimizer:
                         research_llm=research_agent_llm_name,
                         reasoning_llm=reasoning_llm,
                         originating_idea=prompt.idea,
+                        research_reports_per_question=1,
+                        predictions_per_research_report=1,
                     )
                 )
             evaluation_result = await evaluator.evaluate_bot_configs(configs)

@@ -60,6 +60,10 @@ from forecasting_tools.front_end.helpers.app_page import AppPage
 from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
+from forecasting_tools.helpers.forecast_database_manager import (
+    ForecastDatabaseManager,
+    ForecastRunType,
+)
 from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)
@@ -448,7 +452,8 @@ class ChatPage(AppPage):
 
         instructions = clean_indents(
             f"""
-            You are a helpful assistant.
+            # Instructions
+            You are a helpful assistant hired to help with forecasting related tasks.
             - When a tool gives you answers that are cited, ALWAYS include the links in your responses. Keep the links inline as much as you can.
             - If you can, you infer the inputs to tools rather than ask for them.
             - If a tool call fails, you say so rather than giving a back up answer. ALWAYS state errors. NEVER give a back up answer.
@@ -457,6 +462,11 @@ class ChatPage(AppPage):
             - Format your response as Markdown parsable in streamlit.write() function
             - If the forecast_question_tool is available, always use this when forecasting unless someone asks you not to.
 
+            # Payment
+            Please first prioritize the usefulness of your response and choosing good tools to answer the user's question. You are being hired for this capability.
+            You will also receive a large bonus if you can consistently cite exactly the links given to you in full from tool calls (this includes not add any links that are not in tool calls)
+
+            {"# Files" if chat_files else ""}
             {file_instructions if chat_files else ""}
             """
         )
@@ -494,6 +504,18 @@ class ChatPage(AppPage):
             st.session_state.messages = result.to_input_list()
             st.session_state.trace_id = chat_trace.trace_id
             cls._update_last_message_if_gemini_bug(model_choice)
+
+        ForecastDatabaseManager.add_general_report_to_database(
+            question_text=prompt_input,
+            background_info=None,
+            resolution_criteria=None,
+            fine_print=None,
+            prediction=None,
+            explanation=streamed_text,
+            page_url=None,
+            price_estimate=None,
+            run_type=ForecastRunType.WEB_APP_CHAT,
+        )
 
     @classmethod
     def _update_last_message_if_gemini_bug(cls, model_choice: str) -> None:

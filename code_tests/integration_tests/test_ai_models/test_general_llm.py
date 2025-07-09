@@ -89,7 +89,7 @@ def test_citations_are_populated() -> None:
     logger.info(f"Response: {response}")
     assert response, "Response is empty"
     assert (
-        "http:" not in response and "www." not in response
+        "http" not in response and "www." not in response
     ), "Citations are populated"
 
 

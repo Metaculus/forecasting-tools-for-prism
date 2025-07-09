@@ -23,7 +23,6 @@ class ComputerUseResult(BaseModel):
     downloads_url: str | None
     final_answer: str
     hyperbrowser_session_id: str
-    session_id: str
     recording_url: str | None
 
     @property
@@ -53,8 +52,8 @@ class ComputerUseResult(BaseModel):
             text_log += f"\n- **Downloads URL:** [url]({self.downloads_url})"
         for file in self.hosted_files:
             text_log += f"\n- **Downloaded File:** Name: {file.file_name} | OpenAI File ID: {file.file_id}"
-        if self.session_id:
-            text_log += f"\n- **Session ID:** {self.session_id}"
+        if self.hyperbrowser_session_id:
+            text_log += f"\n- **Session ID:** {self.hyperbrowser_session_id}"
         if self.recording_url:
             text_log += f"\n- **Recording URL:** [url]({self.recording_url})"
         return text_log
@@ -141,7 +140,6 @@ class ComputerUse:
             hosted_files=hosted_files,
             downloads_url=download_url,
             hyperbrowser_session_id=session_id,
-            session_id=session_id,
             recording_url=recording_url,
         )
 

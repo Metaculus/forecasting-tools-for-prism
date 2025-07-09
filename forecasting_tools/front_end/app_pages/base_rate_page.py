@@ -82,7 +82,7 @@ class BaseRatePage(ToolPage):
     @classmethod
     async def _display_outputs(cls, outputs: list[BaseRateReport]) -> None:
         for report in outputs:
-            with st.expander(report.question):
+            with st.expander(report.question, expanded=True):
                 st.markdown(
                     ReportDisplayer.clean_markdown(report.markdown_report)
                 )

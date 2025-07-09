@@ -31,6 +31,8 @@ class EvaluatedBot:
 
     @property
     def score(self) -> float:
+        if len(self.benchmark.forecast_reports) == 0:
+            return -100.0
         return self.benchmark.average_expected_baseline_score
 
 
@@ -98,13 +100,12 @@ class BotEvaluator:
             benchmark.forecast_bot_class_name = (
                 config.originating_idea.short_name.replace(" ", "_")
             )
-            if len(benchmark.forecast_reports) > 0:
-                evaluated_bots.append(
-                    EvaluatedBot(bot_config=config, benchmark=benchmark)
-                )
-            else:
-                logger.error(
-                    f"Not including {config.originating_idea.short_name} in evaluation report because it has no forecast reports"
+            evaluated_bots.append(
+                EvaluatedBot(bot_config=config, benchmark=benchmark)
+            )
+            if len(benchmark.forecast_reports) == 0:
+                logger.warning(
+                    f"No forecast reports found for bot {config.originating_idea.short_name}"
                 )
         return BotEvaluation(evaluated_bots=evaluated_bots)
 

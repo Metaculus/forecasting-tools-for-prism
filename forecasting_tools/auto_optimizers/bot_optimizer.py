@@ -73,7 +73,7 @@ class BotOptimizer:
             - should be used to generate a research report.
             - This research report will be passed to the reasoning prompt.
             - Should explicitly state limits on how much tools should be used (e.g. max tool calls overall or per step)
-            - Should always include a mention that Metaculus predictions should never by shared in the final research report (this could be used to cheat)
+            - Should always include a mention of something like "Never include Metaculus predictions in your final research report and never search up Metaculus questions". Using Metaculus predictions as a source is disallowed.
             The reasoning part
             - should be used to generate a forecast for a binary question.
             - The forecast must be a probability between 0 and 1.
@@ -122,10 +122,10 @@ class BotOptimizer:
         )
 
         async def evaluate_combined_research_and_reasoning_prompts(
-            combined_prompts: list[ImplementedPrompt],
+            prompts_to_evaluate: list[ImplementedPrompt],
         ) -> list[PromptScore]:
             configs = []
-            for combined_prompt in combined_prompts:
+            for combined_prompt in prompts_to_evaluate:
                 research_prompt, reasoning_prompt = (
                     CustomizableBot.split_combined_research_reasoning_prompt(
                         combined_prompt.text
@@ -142,13 +142,13 @@ class BotOptimizer:
                     )
                 )
             evaluation_result = await evaluator.evaluate_bot_configs(configs)
-            evaluated_prompts = evaluation_result.evaluated_bots
-            assert len(evaluated_prompts) == len(
-                combined_prompts
-            ), f"Number of evaluated prompts ({len(evaluated_prompts)}) does not match number of combined prompts ({len(combined_prompts)})"
+            evaluated_bots = evaluation_result.evaluated_bots
+            assert len(evaluated_bots) == len(
+                prompts_to_evaluate
+            ), f"Number of evaluated bots ({len(evaluated_bots)}) does not match number of prompts to evaluate ({len(prompts_to_evaluate)})"
 
             prompt_scores = []
-            for evaluated_prompt in evaluated_prompts:
+            for evaluated_prompt in evaluated_bots:
                 prompt_scores.append(
                     PromptScore(
                         value=evaluated_prompt.score,
@@ -170,7 +170,7 @@ class BotOptimizer:
 
                 Please return a json as your answer with the following format:
                 {{
-                    "requires_no_metaculus_mention": bool,
+                    "metaculus_disallowed": bool,
                     "reasoning": str
                 }}
 
@@ -190,11 +190,11 @@ class BotOptimizer:
                 }}
 
                 A prompt that contains:
-                > Please avoid sharing any Metaculus predictions in your final research response.
+                > Never search up any questions from Metaculus.
                 would return:
                 {{
                     "requires_no_metaculus_mention": True,
-                    "reasoning": "The prompt contains the instruction 'Please avoid sharing any Metaculus predictions in your final research response.'"
+                    "reasoning": "The prompt contains the instruction 'Never search up any questions from Metaculus.'"
                 }}
 
                 # Your Turn
@@ -211,14 +211,14 @@ class BotOptimizer:
             llm = GeneralLlm(model=ideation_llm_name)
 
             class CheckMetaculusMention(BaseModel):
-                requires_no_metaculus_mention: bool
+                metaculus_disallowed: bool
                 reasoning: str
 
             reasoning_result = await llm.invoke_and_return_verified_type(
                 check_metaculus_mention_prompt,
                 CheckMetaculusMention,
             )
-            if not reasoning_result.requires_no_metaculus_mention:
+            if not reasoning_result.metaculus_disallowed:
                 raise RuntimeError(
                     f"Prompt does not require not mentioning metaculus predictions in the final research report: {reasoning_result.reasoning}"
                 )

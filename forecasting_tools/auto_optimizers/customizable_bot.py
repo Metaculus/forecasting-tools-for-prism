@@ -211,7 +211,11 @@ class CustomizableBot(ForecastBot):
                 f"No research snapshot found for question {question.page_url} and no research tools available"
             )
 
-        return await self._run_research_with_tools(question)
+        research = await self._run_research_with_tools(question)
+        if "Metaculus" in research:
+            logger.warning(
+                f"There may be a prediction from Metaculus used in a question's research: {research}"
+            )
 
     async def _run_research_with_tools(
         self, question: MetaculusQuestion

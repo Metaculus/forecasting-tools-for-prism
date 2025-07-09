@@ -71,17 +71,17 @@ class PromptOptimizer:
     """
 
     def __init__(
-        self,
+        self,  # NOSONAR
         initial_prompt: str,
         iterations: int,
         ideation_llm_name: str,
-        prompts_to_scores_func: Callable[
-            [list[ImplementedPrompt]], Coroutine[Any, Any, list[PromptScore]]
-        ],
         prompt_purpose_explanation: str,
         prompt_requirements_explanation: str,
         template_variables_explanation: str,
         mutation_considerations: str,
+        prompts_to_scores_func: Callable[
+            [list[ImplementedPrompt]], Coroutine[Any, Any, list[PromptScore]]
+        ],
         format_scores_func: (
             Callable[[ScoredPrompt], Coroutine[Any, Any, str]] | None
         ),

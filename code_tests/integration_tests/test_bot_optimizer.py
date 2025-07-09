@@ -25,7 +25,7 @@ async def test_bot_optimizer() -> None:
         breeded_prompts_per_iteration = 1
         iterations_per_run = 2
         optimized_result = await BotOptimizer.optimize_a_combined_research_and_reasoning_prompt(
-            questions=[question],
+            questions=[question, question],
             research_tools=[
                 ResearchTool(tool_name=ToolName.MOCK_TOOL, max_calls=1)
             ],

@@ -346,7 +346,7 @@ class CustomizableBot(ForecastBot):
     def combine_research_reasoning_prompt(
         cls, research_prompt: str, reasoning_prompt: str
     ) -> str:
-        return f"{research_prompt}\n\n{cls.RESEARCH_REASONING_SPLIT_STRING}\n\n{reasoning_prompt}"
+        return f"{research_prompt}{cls.RESEARCH_REASONING_SPLIT_STRING}{reasoning_prompt}"
 
     @classmethod
     def validate_research_prompt(cls, research_prompt: str) -> None:

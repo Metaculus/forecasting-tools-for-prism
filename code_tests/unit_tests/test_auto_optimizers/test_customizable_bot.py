@@ -251,3 +251,23 @@ def test_validate_combined_research_reasoning_prompt(
             CustomizableBot.validate_combined_research_reasoning_prompt(prompt)
     else:
         CustomizableBot.validate_combined_research_reasoning_prompt(prompt)
+
+
+def test_split_and_combine_prompts_generate_equivalent_strings() -> None:
+    research_prompt = (
+        f"Research: {CustomizableBot.REQUIRED_RESEARCH_PROMPT_VARIABLES}"
+    )
+    reasoning_prompt = (
+        f"Reasoning: {CustomizableBot.REQUIRED_REASONING_PROMPT_VARIABLES}"
+    )
+    combined_prompt = CustomizableBot.combine_research_reasoning_prompt(
+        research_prompt, reasoning_prompt
+    )
+
+    new_research_prompt, new_reasoning_prompt = (
+        CustomizableBot.split_combined_research_reasoning_prompt(
+            combined_prompt
+        )
+    )
+    assert new_research_prompt == research_prompt
+    assert new_reasoning_prompt == reasoning_prompt

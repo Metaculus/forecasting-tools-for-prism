@@ -55,6 +55,10 @@ def general_trace_or_span(
         def __exit__(self, exc_type, exc_val, exc_tb):
             return False
 
+        @property
+        def trace_id(self) -> str:
+            return "no-op-trace-id"
+
     return NoOpContextManager()
     # Disabled till I'm able to debug this more
     # try:

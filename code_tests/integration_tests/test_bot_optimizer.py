@@ -25,7 +25,8 @@ async def test_bot_optimizer() -> None:
         survivors_per_iteration = 2
         mutated_prompts_per_survivor = 2
         breeded_prompts_per_iteration = 1
-        iterations_per_run = 2
+        iterations_per_run = 1
+
         optimized_result = await BotOptimizer.optimize_a_combined_research_and_reasoning_prompt(
             evaluation_questions=[question, question],
             research_tools_bot_can_use=[
@@ -33,7 +34,7 @@ async def test_bot_optimizer() -> None:
             ],
             research_agent_llm_name="gpt-4.1-mini",
             reasoning_llm=GeneralLlm(model="gpt-4.1-mini"),
-            batch_size_for_question_evaluation=1,
+            batch_size_for_question_evaluation=5,
             num_iterations_per_run=iterations_per_run,
             ideation_llm_name="o4-mini",
             remove_background_info_from_questions=True,

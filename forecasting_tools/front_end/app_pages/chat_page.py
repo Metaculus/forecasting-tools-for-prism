@@ -68,6 +68,13 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL: str = (
     "openrouter/google/gemini-2.5-pro-preview"  # "openrouter/anthropic/claude-sonnet-4"
 )
+MODEL_CHOICES: list[str] = [
+    DEFAULT_MODEL,
+    "openrouter/anthropic/claude-sonnet-4",
+    "openai/o3",
+    "openai/o4-mini",
+    "openai/gpt-4.1",
+]
 
 
 class ChatSession(BaseModel, Jsonable):
@@ -124,14 +131,11 @@ class ChatPage(AppPage):
         if "model_choice" not in st.session_state.keys():
             st.session_state["model_choice"] = DEFAULT_MODEL
         model_name: str = st.session_state["model_choice"]
-        model_choice = st.sidebar.text_input(
-            "Litellm compatible model used for chat (not tools)",
-            value=model_name,
+        model_choice = st.sidebar.selectbox(
+            "Choose your model (used for chat, not tools)",
+            MODEL_CHOICES,
+            index=MODEL_CHOICES.index(model_name),
         )
-        if "o1-pro" in model_choice or "gpt-4.5" in model_choice:
-            raise ValueError(
-                "o1 pro and gpt-4.5 are not available for this application."
-            )
         st.session_state["model_choice"] = model_choice
 
     @classmethod
@@ -486,10 +490,10 @@ class ChatPage(AppPage):
                     if new_reasoning:
                         st.sidebar.write(new_reasoning)
 
-        # logger.info(f"Chat finished with output: {streamed_text}")
-        st.session_state.messages = result.to_input_list()
-        st.session_state.trace_id = chat_trace.trace_id
-        cls._update_last_message_if_gemini_bug(model_choice)
+            # logger.info(f"Chat finished with output: {streamed_text}")
+            st.session_state.messages = result.to_input_list()
+            st.session_state.trace_id = chat_trace.trace_id
+            cls._update_last_message_if_gemini_bug(model_choice)
 
     @classmethod
     def _update_last_message_if_gemini_bug(cls, model_choice: str) -> None:

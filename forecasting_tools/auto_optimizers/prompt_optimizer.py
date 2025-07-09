@@ -34,7 +34,7 @@ class ImplementedPrompt(BaseModel):
 
 class PromptScore(BaseModel):
     value: float
-    metadata: dict[str, Any]
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ScoredPrompt(BaseModel):
@@ -125,25 +125,30 @@ class PromptOptimizer:
             logger.info(
                 f"Generating initial prompt population of size {self.initial_prompt_population_size}"
             )
-            prompts_still_needed = self.initial_prompt_population_size - 1
-            starting_prompts: list[ImplementedPrompt] = []
+            seed_prompt = ImplementedPrompt(
+                text=self.initial_prompt,
+                idea=PromptIdea(
+                    short_name="Initial Seed",
+                    full_text="The user-provided initial prompt",
+                ),
+                originating_ideas=[],
+            )
+            starting_prompts: list[ImplementedPrompt] = [seed_prompt]
+            prompts_still_needed = self.initial_prompt_population_size - len(
+                starting_prompts
+            )
             if prompts_still_needed > 0:
                 additional_initial_prompts = await self._mutate_prompt(
-                    ImplementedPrompt(
-                        text=self.initial_prompt,
-                        idea=PromptIdea(
-                            short_name="Initial Seed",
-                            full_text="The user-provided initial prompt",
-                        ),
-                        originating_ideas=[],
-                    ),
+                    starting_prompts[0],
                     prompts_still_needed,
                 )
-                starting_prompts = additional_initial_prompts
+                starting_prompts.extend(additional_initial_prompts)
 
-        all_evaluated_prompts: list[ScoredPrompt] = []
-        survivors: list[ScoredPrompt] = []
-        offspring_prompts: list[ImplementedPrompt] = starting_prompts
+            offspring_prompts: list[ImplementedPrompt] = starting_prompts
+            all_evaluated_prompts: list[ScoredPrompt] = (
+                await self._evaluate_new_members(offspring_prompts)
+            )
+            survivors = await self._kill_the_weak(all_evaluated_prompts)
 
         for iteration_num in range(self.iterations):
             with general_trace_or_span(
@@ -154,15 +159,15 @@ class PromptOptimizer:
                     f"Starting iteration {iteration_num + 1}/{self.iterations} - Current population size: {len(offspring_prompts)}"
                 )
 
+                offspring_prompts = await self._generate_new_prompts(survivors)
+
                 evaluated_prompts = await self._evaluate_new_members(
                     offspring_prompts
                 )
                 all_evaluated_prompts.extend(evaluated_prompts)
-
                 updated_population = survivors + evaluated_prompts
-                survivors = await self._kill_the_weak(updated_population)
 
-                offspring_prompts = await self._generate_new_prompts(survivors)
+                survivors = await self._kill_the_weak(updated_population)
 
                 self._log_duplicate_prompts(all_evaluated_prompts)
 

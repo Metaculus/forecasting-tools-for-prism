@@ -9,6 +9,8 @@ from typing import Any
 import typeguard
 from pydantic import AliasChoices, BaseModel, Field
 
+from forecasting_tools.auto_optimizers.customizable_bot import CustomizableBot
+from forecasting_tools.auto_optimizers.prompt_data_models import ResearchTool
 from forecasting_tools.data_models.binary_report import BinaryReport
 from forecasting_tools.data_models.forecast_report import ForecastReport
 from forecasting_tools.data_models.multiple_choice_report import (
@@ -134,6 +136,40 @@ class BenchmarkForBot(BaseModel, Jsonable):
     @property
     def num_failed_forecasts(self) -> int:
         return len(self.failed_report_errors)
+
+    @property
+    def bot_prompt(self) -> str:
+        try:
+            return self.forecast_bot_config["prompt"]
+        except Exception:
+            pass
+
+        try:
+            reasoning_prompt = self.forecast_bot_config["reasoning_prompt"]
+            research_prompt = self.forecast_bot_config["research_prompt"]
+            return CustomizableBot.combine_research_reasoning_prompt(
+                research_prompt, reasoning_prompt
+            )
+        except Exception:
+            pass
+
+        raise ValueError(
+            f"Prompt not included in forecast bot config for {self.forecast_bot_class_name}"
+        )
+
+    @property
+    def research_tools_used(self) -> list[ResearchTool]:
+        try:
+            research_tools = self.forecast_bot_config["research_tools"]
+            research_tools = [ResearchTool(**tool) for tool in research_tools]
+            research_tools = typeguard.check_type(
+                research_tools, list[ResearchTool]
+            )
+            return research_tools
+        except Exception:
+            raise ValueError(
+                f"Research tools not included in forecast bot config for {self.forecast_bot_class_name}"
+            )
 
     @classmethod
     def initialize_benchmark_for_bot(

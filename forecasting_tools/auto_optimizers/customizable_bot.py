@@ -216,6 +216,7 @@ class CustomizableBot(ForecastBot):
             logger.warning(
                 f"There may be a prediction from Metaculus used in a question's research: {research}"
             )
+        return research
 
     async def _run_research_with_tools(
         self, question: MetaculusQuestion
@@ -340,6 +341,12 @@ class CustomizableBot(ForecastBot):
         cls.validate_research_prompt(research_prompt)
         cls.validate_reasoning_prompt(reasoning_prompt)
         return research_prompt, reasoning_prompt
+
+    @classmethod
+    def combine_research_reasoning_prompt(
+        cls, research_prompt: str, reasoning_prompt: str
+    ) -> str:
+        return f"{research_prompt}\n\n{cls.RESEARCH_REASONING_SPLIT_STRING}\n\n{reasoning_prompt}"
 
     @classmethod
     def validate_research_prompt(cls, research_prompt: str) -> None:

@@ -34,7 +34,8 @@
 				"tamasfe.even-better-toml",
 				"ms-toolsai.jupyter",
 				"anthropic.claude-code",
-				"coderabbit.coderabbit-vscode"
+				"coderabbit.coderabbit-vscode",
+				"oderwat.indent-rainbow"
 			]
 		}
 	},

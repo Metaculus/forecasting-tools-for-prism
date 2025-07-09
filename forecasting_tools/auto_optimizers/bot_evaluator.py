@@ -146,6 +146,7 @@ class BotEvaluator:
         self,
         benchmark_files: list[str],
         forecast_llm: GeneralLlm,
+        research_llm_name: str,
         top_n_prompts: int = 1,
         include_control_group_prompt: bool = True,
         include_worst_prompt: bool = False,
@@ -155,6 +156,9 @@ class BotEvaluator:
         best_benchmarks = self._get_best_benchmark_prompts(
             benchmark_files, top_n_prompts, include_worst_prompt
         )
+        research_tools_of_best_benchmark = best_benchmarks[
+            0
+        ].research_tools_used
 
         logger.info(
             f"Evaluating {len(best_benchmarks)} prompts with {forecast_llm.model}. Prompts are the best scoring from files {benchmark_files}"
@@ -163,7 +167,10 @@ class BotEvaluator:
         if include_control_group_prompt:
             control_group_config = BotConfig(
                 reasoning_prompt_template=ControlPrompt.get_reasoning_prompt(),
+                research_prompt_template=ControlPrompt.get_research_prompt(),
+                research_tools=research_tools_of_best_benchmark,
                 reasoning_llm=forecast_llm,
+                research_llm=research_llm_name,
                 originating_idea=PromptIdea(
                     short_name=f"Control Group v{ControlPrompt.version()}",
                     full_text="The control group is a group of questions that are not optimized for the prompt. It is used to evaluate the performance of the optimized prompt.",
@@ -173,13 +180,21 @@ class BotEvaluator:
             )
             configs.append(control_group_config)
         for benchmark in best_benchmarks:
-            prompt = benchmark.forecast_bot_config["prompt"]
+            combined_research_reasoning_prompt = benchmark.bot_prompt
+            reasoning_prompt, research_prompt = (
+                CustomizableBot.split_combined_research_reasoning_prompt(
+                    combined_research_reasoning_prompt
+                )
+            )
             logger.info(
-                f"{benchmark.forecast_bot_class_name} - {benchmark.average_expected_baseline_score}:\n{prompt}"
+                f"{benchmark.forecast_bot_class_name} - {benchmark.average_expected_baseline_score}:\n{combined_research_reasoning_prompt}"
             )
             best_prompt_config = BotConfig(
-                reasoning_prompt_template=prompt,
+                reasoning_prompt_template=reasoning_prompt,
+                research_prompt_template=research_prompt,
+                research_tools=benchmark.research_tools_used,
                 reasoning_llm=forecast_llm,
+                research_llm=research_llm_name,
                 originating_idea=PromptIdea(
                     short_name=f"{benchmark.forecast_bot_class_name}",
                     full_text=f"Evaluate the prompt from {benchmark.forecast_bot_class_name} (originally found from a different dataset/origin) with model {forecast_llm.model} and {len(self.evaluation_questions)} questions",

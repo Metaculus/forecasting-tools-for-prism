@@ -127,10 +127,10 @@ class BotOptimizer:
             prompts_to_evaluate: list[ImplementedPrompt],
         ) -> list[PromptScore]:
             configs = []
-            for combined_prompt in prompts_to_evaluate:
+            for prompt in prompts_to_evaluate:
                 research_prompt, reasoning_prompt = (
                     CustomizableBot.split_combined_research_reasoning_prompt(
-                        combined_prompt.text
+                        prompt.text
                     )
                 )
                 configs.append(
@@ -140,7 +140,7 @@ class BotOptimizer:
                         research_tools=research_tools_bot_can_use,
                         research_llm=research_agent_llm_name,
                         reasoning_llm=reasoning_llm,
-                        originating_idea=combined_prompt.idea,
+                        originating_idea=prompt.idea,
                     )
                 )
             evaluation_result = await evaluator.evaluate_bot_configs(configs)
@@ -150,15 +150,21 @@ class BotOptimizer:
             ), f"Number of evaluated bots ({len(evaluated_bots)}) does not match number of prompts to evaluate ({len(prompts_to_evaluate)})"
 
             prompt_scores = []
-            for evaluated_prompt in evaluated_bots:
+            for evaluated_bot, prompt in zip(
+                evaluated_bots, prompts_to_evaluate
+            ):
+                benchmark = evaluated_bot.benchmark
                 prompt_scores.append(
                     PromptScore(
-                        value=evaluated_prompt.score,
+                        value=evaluated_bot.score,
                         metadata={
-                            "benchmark": evaluated_prompt.benchmark,
+                            "benchmark": evaluated_bot.benchmark,
                         },
                     )
                 )
+                assert (
+                    benchmark.bot_prompt == prompt.text
+                ), f"Prompt {prompt.text} does not match prompt in benchmark {benchmark.bot_prompt}"
             return prompt_scores
 
         async def validate_prompt(prompt: ImplementedPrompt) -> None:

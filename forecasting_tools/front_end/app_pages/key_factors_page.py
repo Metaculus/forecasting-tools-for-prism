@@ -14,22 +14,22 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 top_level_dir = os.path.abspath(os.path.join(current_dir, "../../../"))
 sys.path.append(top_level_dir)
 
-from forecasting_tools.agents_and_tools.key_factors_researcher import (
+from forecasting_tools.agents_and_tools.research.key_factors_researcher import (
     KeyFactorsResearcher,
     ScoredKeyFactor,
 )
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
-from forecasting_tools.forecast_helpers.forecast_database_manager import (
-    ForecastDatabaseManager,
-    ForecastRunType,
-)
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
 from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
 from forecasting_tools.front_end.helpers.tool_page import ToolPage
+from forecasting_tools.helpers.forecast_database_manager import (
+    ForecastDatabaseManager,
+    ForecastRunType,
+)
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)
@@ -120,7 +120,9 @@ class KeyFactorsPage(ToolPage):
     @classmethod
     async def _display_outputs(cls, outputs: list[KeyFactorsOutput]) -> None:
         for output in outputs:
-            with st.expander(f"Key Factors for: {output.question_text}"):
+            with st.expander(
+                f"Key Factors for: {output.question_text}", expanded=True
+            ):
                 st.markdown(f"Cost: ${output.cost:.2f}")
                 st.markdown(ReportDisplayer.clean_markdown(output.markdown))
 

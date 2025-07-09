@@ -2,66 +2,63 @@ import asyncio
 import logging
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
-from forecasting_tools.benchmarking.prompt_optimizer import PromptOptimizer
-from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
-    ResearchType,
+from forecasting_tools.auto_optimizers.bot_optimizer import BotOptimizer
+from forecasting_tools.auto_optimizers.prompt_data_models import (
+    ResearchTool,
+    ToolName,
 )
+from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.util.custom_logger import CustomLogger
 
 logger = logging.getLogger(__name__)
 
 
 async def run_optimizer() -> None:
-    # -------- Configure the optimizer -----
-    evaluation_questions = QuestionResearchSnapshot.load_json_from_file_path(
-        "logs/forecasts/question_snapshots_v1.6.train__112qs.json"
+    # ----- Settings for the optimizer -----
+    metaculus_question_path = "questions.json"
+    questions = MetaculusQuestion.load_json_from_file_path(
+        metaculus_question_path
     )
-    forecast_llm = GeneralLlm(
-        model="openrouter/openai/gpt-4.1",
-        temperature=0.3,
-    )
+    research_tools = [
+        ResearchTool(
+            tool_name=ToolName.PERPLEXITY_LOW_COST,
+            max_calls=1,
+        ),
+        ResearchTool(
+            tool_name=ToolName.ASKNEWS,
+            max_calls=1,
+        ),
+    ]
     ideation_llm = "openrouter/google/gemini-2.5-pro-preview"
-    remove_background_info = True
-    start_fresh_optimization_runs = 1
-    num_iterations_per_run = 4
+    research_coordination_llm = "openrouter/openai/gpt-4.1-mini"
+    reasoning_llm = GeneralLlm(
+        model="openrouter/openai/gpt-4.1-mini", temperature=0.3
+    )
+    folder_to_save_benchmarks = "logs/forecasts/benchmarks/"
     questions_batch_size = 112
+    num_iterations_per_run = 3
+    remove_background_info = True
+    initial_prompt_population_size = 20
+    survivors_per_iteration = 5
+    mutated_prompts_per_survivor = 3
+    breeded_prompts_per_iteration = 5
 
-    # ----- Run the optimizer -----
-    if remove_background_info:
-        for snapshot in evaluation_questions:
-            snapshot.question.background_info = None
-    for run in range(start_fresh_optimization_runs):
-        logger.info(f"Run {run + 1} of {start_fresh_optimization_runs}")
-        logger.info(f"Loaded {len(evaluation_questions)} evaluation questions")
-        evaluator = PromptEvaluator(
-            evaluation_questions=evaluation_questions,
-            research_type=ResearchType.ASK_NEWS_SUMMARIES,
-            concurrent_evaluation_batch_size=questions_batch_size,
-            file_or_folder_to_save_benchmarks="logs/forecasts/benchmarks/",
-        )
-        optimizer = PromptOptimizer(
-            iterations=num_iterations_per_run,
-            forecast_llm=forecast_llm,
-            ideation_llm_name=ideation_llm,
-            evaluator=evaluator,
-        )
-        evaluation_result = await optimizer.create_optimized_prompt()
-        evaluated_prompts = evaluation_result.evaluated_prompts
-        for evaluated_prompt in evaluated_prompts:
-            logger.info(
-                f"Name: {evaluated_prompt.prompt_config.original_idea.short_name}"
-            )
-            logger.info(f"Config: {evaluated_prompt.prompt_config}")
-            logger.info(f"Code: {evaluated_prompt.benchmark.code}")
-            logger.info(
-                f"Forecast Bot Class Name: {evaluated_prompt.benchmark.forecast_bot_class_name}"
-            )
-            logger.info(f"Cost: {evaluated_prompt.benchmark.total_cost}")
-            logger.info(f"Score: {evaluated_prompt.score}")
-
-        logger.info(f"Best prompt: {evaluation_result.best_prompt}")
+    # ------ Run the optimizer -----
+    await BotOptimizer.optimize_a_combined_research_and_reasoning_prompt(
+        evaluation_questions=questions,
+        research_tools_bot_can_use=research_tools,
+        research_agent_llm_name=research_coordination_llm,
+        reasoning_llm=reasoning_llm,
+        batch_size_for_question_evaluation=questions_batch_size,
+        num_iterations_per_run=num_iterations_per_run,
+        ideation_llm_name=ideation_llm,
+        remove_background_info_from_questions=remove_background_info,
+        folder_to_save_benchmarks=folder_to_save_benchmarks,
+        initial_prompt_population_size=initial_prompt_population_size,
+        survivors_per_iteration=survivors_per_iteration,
+        mutated_prompts_per_survivor=mutated_prompts_per_survivor,
+        breeded_prompts_per_iteration=breeded_prompts_per_iteration,
+    )
 
 
 if __name__ == "__main__":

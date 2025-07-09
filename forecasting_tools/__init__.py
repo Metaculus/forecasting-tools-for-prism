@@ -12,20 +12,26 @@ from forecasting_tools.agents_and_tools.base_rates.niche_list_researcher import 
 from forecasting_tools.agents_and_tools.base_rates.niche_list_researcher import (
     NicheListResearcher as NicheListResearcher,
 )
-from forecasting_tools.agents_and_tools.key_factors_researcher import (
-    KeyFactorsResearcher as KeyFactorsResearcher,
-)
-from forecasting_tools.agents_and_tools.key_factors_researcher import (
-    ScoredKeyFactor as ScoredKeyFactor,
-)
-from forecasting_tools.agents_and_tools.question_generators.question_generator import (
+from forecasting_tools.agents_and_tools.deprecated.question_generator import (
     QuestionGenerator as QuestionGenerator,
 )
 from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
     TopicGenerator as TopicGenerator,
 )
+from forecasting_tools.agents_and_tools.research.key_factors_researcher import (
+    KeyFactorsResearcher as KeyFactorsResearcher,
+)
+from forecasting_tools.agents_and_tools.research.key_factors_researcher import (
+    ScoredKeyFactor as ScoredKeyFactor,
+)
+from forecasting_tools.agents_and_tools.research.smart_searcher import (
+    SmartSearcher as SmartSearcher,
+)
 from forecasting_tools.ai_models.ai_utils.ai_misc import (
     clean_indents as clean_indents,
+)
+from forecasting_tools.ai_models.ai_utils.openai_utils import (
+    VisionMessageData as VisionMessageData,
 )
 from forecasting_tools.ai_models.deprecated_model_classes.claude35sonnet import (
     Claude35Sonnet as Claude35Sonnet,
@@ -50,17 +56,17 @@ from forecasting_tools.ai_models.general_llm import GeneralLlm as GeneralLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager as MonetaryCostManager,
 )
-from forecasting_tools.benchmarking.benchmark_displayer import (
+from forecasting_tools.auto_optimizers.bot_optimizer import (
+    BotOptimizer as BotOptimizer,
+)
+from forecasting_tools.cp_benchmarking.benchmark_displayer import (
     run_benchmark_streamlit_page as run_benchmark_streamlit_page,
 )
-from forecasting_tools.benchmarking.benchmark_for_bot import (
+from forecasting_tools.cp_benchmarking.benchmark_for_bot import (
     BenchmarkForBot as BenchmarkForBot,
 )
-from forecasting_tools.benchmarking.benchmarker import (
+from forecasting_tools.cp_benchmarking.benchmarker import (
     Benchmarker as Benchmarker,
-)
-from forecasting_tools.benchmarking.prompt_optimizer import (
-    PromptOptimizer as PromptOptimizer,
 )
 from forecasting_tools.data_models.binary_report import (
     BinaryReport as BinaryReport,
@@ -127,20 +133,15 @@ from forecasting_tools.forecast_bots.other.uniform_probability_bot import (
 from forecasting_tools.forecast_bots.template_bot import (
     TemplateBot as TemplateBot,
 )
-from forecasting_tools.forecast_helpers.asknews_searcher import (
+from forecasting_tools.helpers.asknews_searcher import (
     AskNewsSearcher as AskNewsSearcher,
 )
-from forecasting_tools.forecast_helpers.metaculus_api import (
-    ApiFilter as ApiFilter,
-)
-from forecasting_tools.forecast_helpers.metaculus_api import (
+from forecasting_tools.helpers.metaculus_api import ApiFilter as ApiFilter
+from forecasting_tools.helpers.metaculus_api import (
     MetaculusApi as MetaculusApi,
 )
-from forecasting_tools.forecast_helpers.prediction_extractor import (
+from forecasting_tools.helpers.prediction_extractor import (
     PredictionExtractor as PredictionExtractor,
-)
-from forecasting_tools.forecast_helpers.smart_searcher import (
-    SmartSearcher as SmartSearcher,
 )
 
 nest_asyncio.apply()

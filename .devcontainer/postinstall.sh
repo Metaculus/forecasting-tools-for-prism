@@ -20,12 +20,20 @@ poetry run pre-commit install
 # playwright install
 # playwright install-deps
 
-# Used for sonar extension code analysis
-nvm install 18
+### Node/NVM Used for sonar extension code analysis and claude code
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+
+# Source nvm in the current shell session
+export NVM_DIR="/usr/local/share/nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+nvm install --lts # Consider version 18 if we want a consistent version rather than the latest
+nvm use --lts
+npm install -g @anthropic-ai/claude-code
 
 # Activate virtual environment
 source .venv/bin/activate
-source ../.venv/bin/activate
 
 # Show which Python interpreter is being used
 which python

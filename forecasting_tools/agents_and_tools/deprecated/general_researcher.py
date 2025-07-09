@@ -5,8 +5,10 @@ from forecasting_tools.agents_and_tools.deprecated.question_responder import (
 )
 
 logger = logging.getLogger(__name__)
+from forecasting_tools.agents_and_tools.research.smart_searcher import (
+    SmartSearcher,
+)
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
-from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
 
 
 class GeneralResearcher(QuestionResponder):

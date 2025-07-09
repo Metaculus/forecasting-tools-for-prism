@@ -10,14 +10,14 @@ from forecasting_tools.agents_and_tools.base_rates.niche_list_researcher import 
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
-from forecasting_tools.forecast_helpers.forecast_database_manager import (
-    ForecastDatabaseManager,
-    ForecastRunType,
-)
 from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
 from forecasting_tools.front_end.helpers.tool_page import ToolPage
+from forecasting_tools.helpers.forecast_database_manager import (
+    ForecastDatabaseManager,
+    ForecastRunType,
+)
 from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)
@@ -115,7 +115,7 @@ class NicheListResearchPage(ToolPage):
     @classmethod
     async def _display_outputs(cls, outputs: list[NicheListOutput]) -> None:
         for output in outputs:
-            with st.expander(f"{output.question_text}"):
+            with st.expander(f"{output.question_text}", expanded=True):
                 st.markdown(f"**Cost:** ${output.cost:.2f}")
                 st.markdown(
                     ReportDisplayer.clean_markdown(output.markdown_output)

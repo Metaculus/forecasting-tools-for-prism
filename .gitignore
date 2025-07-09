@@ -9,6 +9,7 @@ sandbox.ipynb
 benchmarks/
 test_file.csv
 test_file.json
+*CLAUDE.local.md
 
 .DS_Store
 

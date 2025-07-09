@@ -15,6 +15,7 @@ from litellm.types.utils import Choices, Usage
 from litellm.utils import token_counter
 from openai import AsyncOpenAI
 
+from forecasting_tools.ai_models.agent_wrappers import generation_span
 from forecasting_tools.ai_models.ai_utils.openai_utils import (
     OpenAiUtils,
     VisionMessageData,
@@ -235,64 +236,73 @@ class GeneralLlm(
     async def _mockable_direct_call_to_model(
         self, prompt: ModelInputType
     ) -> TextTokenCostResponse:
-        self._everything_special_to_call_before_direct_call()
-        assert self._litellm_model is not None
-
-        if self._use_exa:
-            return await self._call_exa_model(prompt)
-
-        litellm.drop_params = True
-
-        response = await acompletion(
-            messages=self.model_input_to_message(prompt),
-            **self.litellm_kwargs,
-        )
-        assert isinstance(response, ModelResponse)
-        choices = response.choices
-        choices = typeguard.check_type(choices, list[Choices])
-        answer = choices[0].message.content
-        assert isinstance(
-            answer, str
-        ), f"Answer is not a string and is of type: {type(answer)}. Answer: {answer}"
-        usage = response.usage  # type: ignore
-        assert isinstance(usage, Usage)
-        prompt_tokens = usage.prompt_tokens
-        completion_tokens = usage.completion_tokens
-        total_tokens = usage.total_tokens
-
-        if answer == "":
-            logger.warning(
-                f"Model {self.model} returned an empty string as an answer. Raising exception (though this will probably result in a retry)"
-            )
-            raise RuntimeError(
-                f"LLM answer is an empty string. The model was {self.model} and the prompt was: {prompt}"
-            )
-
-        cost = LitellmCostTracker.calculate_cost(response._hidden_params)
-
-        if (
-            response.model_extra
-            and "citations" in response.model_extra
-            and self.populate_citations
-        ):
-            citations = response.model_extra.get("citations")
-            citations = typeguard.check_type(citations, list[str])
-            answer = fill_in_citations(
-                citations, answer, use_citation_brackets=False
-            )
-
-        await asyncio.sleep(
-            0.0001
-        )  # For whatever reason, you need to await a coroutine to get the litellm cost call back to work
-
-        return TextTokenCostResponse(
-            data=answer,
-            prompt_tokens_used=prompt_tokens,
-            completion_tokens_used=completion_tokens,
-            total_tokens_used=total_tokens,
+        with generation_span(
+            input=self.model_input_to_message(prompt),
             model=self.model,
-            cost=cost,
-        )
+        ) as span:
+            self._everything_special_to_call_before_direct_call()
+            assert self._litellm_model is not None
+
+            if self._use_exa:
+                return await self._call_exa_model(prompt)
+
+            litellm.drop_params = True
+
+            response = await acompletion(
+                messages=self.model_input_to_message(prompt),
+                **self.litellm_kwargs,
+            )
+            assert isinstance(response, ModelResponse)
+            choices = response.choices
+            choices = typeguard.check_type(choices, list[Choices])
+            answer = choices[0].message.content
+            assert isinstance(
+                answer, str
+            ), f"Answer is not a string and is of type: {type(answer)}. Answer: {answer}"
+            usage = response.usage  # type: ignore
+            assert isinstance(usage, Usage)
+            prompt_tokens = usage.prompt_tokens
+            completion_tokens = usage.completion_tokens
+            total_tokens = usage.total_tokens
+
+            if answer == "":
+                logger.warning(
+                    f"Model {self.model} returned an empty string as an answer. Raising exception (though this will probably result in a retry)"
+                )
+                raise RuntimeError(
+                    f"LLM answer is an empty string. The model was {self.model} and the prompt was: {prompt}"
+                )
+
+            cost = LitellmCostTracker.calculate_cost(response._hidden_params)
+
+            if (
+                response.model_extra
+                and "citations" in response.model_extra
+                and self.populate_citations
+            ):
+                citations = response.model_extra.get("citations")
+                citations = typeguard.check_type(citations, list[str])
+                answer = fill_in_citations(
+                    citations, answer, use_citation_brackets=False
+                )
+
+            await asyncio.sleep(
+                0.00001
+            )  # For whatever reason, you need to await a coroutine to get the litellm cost call back to work
+
+            response = TextTokenCostResponse(
+                data=answer,
+                prompt_tokens_used=prompt_tokens,
+                completion_tokens_used=completion_tokens,
+                total_tokens_used=total_tokens,
+                model=self.model,
+                cost=cost,
+            )
+            span.span_data.output = [{"role": "assistant", "content": answer}]
+            span.span_data.usage = usage.model_dump()
+            span.span_data.model = self.model
+            span.span_data.model_config = self.litellm_kwargs
+            return response
 
     async def _call_exa_model(
         self, prompt: ModelInputType
@@ -305,15 +315,11 @@ class GeneralLlm(
         ), f"model {self.model} is not an exa model but is being called like one"
 
         if len(str(prompt)) > 10_000:
-            logger.warning(
-                "Shortening prompt since exa models have a 10k token limit"
+            raise ValueError(
+                f"Prompt is too long. Exa models have a 10k token limit. "
+                f"Prompt length: {len(str(prompt))}. "
+                f"Prompt:\n{str(prompt)[:1000]}...{str(prompt)[-1000:]}"
             )
-            prompt = str(prompt)[:9_000]
-            # raise ValueError(
-            #     f"Prompt is too long. Exa models have a 10k token limit. "
-            #     f"Prompt length: {len(str(prompt))}. "
-            #     f"Prompt:\n{str(prompt)[:1000]}...{str(prompt)[-1000:]}"
-            # )
 
         api_key = self.litellm_kwargs.get("api_key")
         timeout = self.litellm_kwargs.get("timeout")

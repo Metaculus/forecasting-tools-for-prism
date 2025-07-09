@@ -12,6 +12,7 @@ from typing import Any, Coroutine, Literal, Sequence, TypeVar, cast, overload
 from exceptiongroup import ExceptionGroup
 from pydantic import BaseModel
 
+from forecasting_tools.ai_models.agent_wrappers import general_trace_or_span
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
@@ -26,6 +27,7 @@ from forecasting_tools.data_models.forecast_report import (
     ReasonedPrediction,
     ResearchWithPredictions,
 )
+from forecasting_tools.data_models.markdown_tree import MarkdownTree
 from forecasting_tools.data_models.multiple_choice_report import (
     PredictedOptionList,
 )
@@ -37,7 +39,7 @@ from forecasting_tools.data_models.questions import (
     MultipleChoiceQuestion,
     NumericQuestion,
 )
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 
 T = TypeVar("T")
 
@@ -328,17 +330,20 @@ class ForecastBot(ABC):
     async def _run_individual_question_with_error_propagation(
         self, question: MetaculusQuestion
     ) -> ForecastReport:
-        try:
-            return await self._run_individual_question(question)
-        except Exception as e:
-            error_message = (
-                f"Error while processing question url: '{question.page_url}'"
-            )
-            logger.error(f"{error_message}: {e}")
-            self._reraise_exception_with_prepended_message(e, error_message)
-            assert (
-                False
-            ), "This is to satisfy type checker. The previous function should raise an exception"
+        with general_trace_or_span(
+            f"{self.__class__.__name__} - Question: {question.page_url}"
+        ):
+            try:
+                return await self._run_individual_question(question)
+            except Exception as e:
+                error_message = f"Error while processing question url: '{question.page_url}'"
+                logger.error(f"{error_message}: {e}")
+                self._reraise_exception_with_prepended_message(
+                    e, error_message
+                )
+                assert (
+                    False
+                ), "This is to satisfy type checker. The previous function should raise an exception"
 
     async def _run_individual_question(
         self, question: MetaculusQuestion
@@ -353,7 +358,7 @@ class ForecastBot(ABC):
                 for _ in range(self.research_reports_per_question)
             ]
             valid_prediction_set, research_errors, exception_group = (
-                await self._gather_results_and_exceptions(prediction_tasks)
+                await self._gather_results_and_exceptions(prediction_tasks)  # type: ignore
             )
             if research_errors:
                 logger.warning(
@@ -595,16 +600,10 @@ class ForecastBot(ABC):
         cls, report_number: int, predicted_research: ResearchWithPredictions
     ) -> str:
         markdown = predicted_research.research_report
-        lines = markdown.split("\n")
-        modified_content = ""
-
-        for line in lines:
-            if line.startswith("#"):
-                heading_level = len(line) - len(line.lstrip("#"))
-                content = line[heading_level:].lstrip()
-                new_heading_level = max(3, heading_level + 2)
-                line = f"{'#' * new_heading_level} {content}"
-            modified_content += line + "\n"
+        sections = MarkdownTree.turn_markdown_into_report_sections(markdown)
+        modified_content = MarkdownTree.report_sections_to_markdown(
+            sections, 3
+        )
         final_content = (
             f"## Report {report_number} Research\n{modified_content}"
         )
@@ -844,6 +843,9 @@ class ForecastBot(ABC):
             if isinstance(llm, str):
                 return_value = llm
             else:
+                logger.warning(
+                    f"Converting GeneralLlm to string llm name: {llm.model} for purpose: {purpose}. This means any settings for the GeneralLlm will be ignored."
+                )
                 return_value = llm.model
         else:
             raise ValueError(f"Unknown guarantee_type: {guarantee_type}")

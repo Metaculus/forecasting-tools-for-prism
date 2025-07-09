@@ -6,25 +6,22 @@ import time
 from datetime import datetime
 
 import streamlit as st
-from agents import Agent, Runner, Tool, trace
 from openai.types.responses import ResponseTextDeltaEvent
 from pydantic import BaseModel, Field
 
-from forecasting_tools.agents_and_tools.computer_use import ComputerUse
-from forecasting_tools.agents_and_tools.data_analyzer import DataAnalyzer
-from forecasting_tools.agents_and_tools.find_a_dataset import DatasetFinder
-from forecasting_tools.agents_and_tools.hosted_file import (
-    FileToUpload,
-    HostedFile,
-)
-from forecasting_tools.agents_and_tools.misc_tools import (
+from forecasting_tools.agents_and_tools.minor_tools import (
     create_tool_for_forecasting_bot,
-    get_general_news_with_asknews,
     grab_open_questions_from_tournament,
     grab_question_details_from_metaculus,
     perplexity_pro_search,
     perplexity_quick_search,
+    query_asknews,
     smart_searcher_search,
+)
+from forecasting_tools.agents_and_tools.other.data_analyzer import DataAnalyzer
+from forecasting_tools.agents_and_tools.other.hosted_file import (
+    FileToUpload,
+    HostedFile,
 )
 from forecasting_tools.agents_and_tools.question_generators.info_hazard_identifier import (
     InfoHazardIdentifier,
@@ -38,10 +35,19 @@ from forecasting_tools.agents_and_tools.question_generators.question_operational
 from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
     TopicGenerator,
 )
+from forecasting_tools.agents_and_tools.research.computer_use import (
+    ComputerUse,
+)
+from forecasting_tools.agents_and_tools.research.find_a_dataset import (
+    DatasetFinder,
+)
 from forecasting_tools.ai_models.agent_wrappers import (
+    AgentRunner,
     AgentSdkLlm,
     AgentTool,
+    AiAgent,
     event_to_tool_message,
+    general_trace_or_span,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
@@ -54,14 +60,27 @@ from forecasting_tools.front_end.helpers.app_page import AppPage
 from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
+from forecasting_tools.helpers.forecast_database_manager import (
+    ForecastDatabaseManager,
+    ForecastRunType,
+)
 from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)
 
 
 DEFAULT_MODEL: str = (
-    "openrouter/google/gemini-2.5-pro-preview"  # "openrouter/anthropic/claude-sonnet-4"
+    "openrouter/google/gemini-2.5-pro"  # "openrouter/anthropic/claude-sonnet-4"
 )
+MODEL_CHOICES: list[str] = [
+    DEFAULT_MODEL,
+    "openrouter/anthropic/claude-sonnet-4",
+    "openai/o3",
+    "openai/o4-mini",
+    "openai/gpt-4.1",
+    "gpt-4o",
+    "openrouter/google/gemini-2.5-pro-preview",
+]
 
 
 class ChatSession(BaseModel, Jsonable):
@@ -118,24 +137,21 @@ class ChatPage(AppPage):
         if "model_choice" not in st.session_state.keys():
             st.session_state["model_choice"] = DEFAULT_MODEL
         model_name: str = st.session_state["model_choice"]
-        model_choice = st.sidebar.text_input(
-            "Litellm compatible model used for chat (not tools)",
-            value=model_name,
+        model_choice = st.sidebar.selectbox(
+            "Choose your model (used for chat, not tools)",
+            MODEL_CHOICES,
+            index=MODEL_CHOICES.index(model_name),
         )
-        if "o1-pro" in model_choice or "gpt-4.5" in model_choice:
-            raise ValueError(
-                "o1 pro and gpt-4.5 are not available for this application."
-            )
         st.session_state["model_choice"] = model_choice
 
     @classmethod
-    def get_chat_tools(cls) -> list[Tool]:
+    def get_chat_tools(cls) -> list[AgentTool]:
         return [
             TopicGenerator.find_random_headlines_tool,
             QuestionDecomposer.decompose_into_questions_tool,
             QuestionOperationalizer.question_operationalizer_tool,
             perplexity_pro_search,
-            get_general_news_with_asknews,
+            query_asknews,
             smart_searcher_search,
             grab_question_details_from_metaculus,
             grab_open_questions_from_tournament,
@@ -148,11 +164,11 @@ class ChatPage(AppPage):
         ]
 
     @classmethod
-    def display_tools(cls) -> list[Tool]:
-        default_tools: list[Tool] = cls.get_chat_tools()
+    def display_tools(cls) -> list[AgentTool]:
+        default_tools: list[AgentTool] = cls.get_chat_tools()
         bot_options = get_all_important_bot_classes()
 
-        active_tools: list[Tool] = []
+        active_tools: list[AgentTool] = []
         with st.sidebar.expander("🛠️ Select Tools"):
             bot_choice = st.selectbox(
                 "Select a bot for forecast_question_tool (Main Bot is best)",
@@ -403,7 +419,7 @@ class ChatPage(AppPage):
 
     @classmethod
     async def process_prompt(
-        cls, prompt: str | None, active_tools: list[Tool]
+        cls, prompt: str | None, active_tools: list[AgentTool]
     ) -> None:
         if prompt:
             st.session_state.messages.append(
@@ -424,7 +440,7 @@ class ChatPage(AppPage):
     async def generate_response(
         cls,
         prompt_input: str | None,
-        active_tools: list[Tool],
+        active_tools: list[AgentTool],
     ) -> None:
         if not prompt_input:
             return
@@ -438,7 +454,8 @@ class ChatPage(AppPage):
 
         instructions = clean_indents(
             f"""
-            You are a helpful assistant.
+            # Instructions
+            You are a helpful assistant hired to help with forecasting related tasks.
             - When a tool gives you answers that are cited, ALWAYS include the links in your responses. Keep the links inline as much as you can.
             - If you can, you infer the inputs to tools rather than ask for them.
             - If a tool call fails, you say so rather than giving a back up answer. ALWAYS state errors. NEVER give a back up answer.
@@ -447,22 +464,27 @@ class ChatPage(AppPage):
             - Format your response as Markdown parsable in streamlit.write() function
             - If the forecast_question_tool is available, always use this when forecasting unless someone asks you not to.
 
+            # Payment
+            Please first prioritize the usefulness of your response and choosing good tools to answer the user's question. You are being hired for this capability.
+            You will also receive a large bonus if you can consistently cite exactly the links given to you in full from tool calls (this includes not add any links that are not in tool calls)
+
+            {"# Files" if chat_files else ""}
             {file_instructions if chat_files else ""}
             """
         )
 
         model_choice = st.session_state["model_choice"]
 
-        agent = Agent(
-            name="Assistant",
+        agent = AiAgent(
+            name="Chat App Agent",
             instructions=instructions,
             model=AgentSdkLlm(model=model_choice),
-            tools=active_tools,
+            tools=active_tools,  # type: ignore
             handoffs=[],
         )
 
-        with trace("Chat App") as chat_trace:
-            result = Runner.run_streamed(
+        with general_trace_or_span("Chat App") as chat_trace:
+            result = AgentRunner.run_streamed(
                 agent, st.session_state.messages, max_turns=20
             )
             streamed_text = ""
@@ -480,10 +502,22 @@ class ChatPage(AppPage):
                     if new_reasoning:
                         st.sidebar.write(new_reasoning)
 
-        # logger.info(f"Chat finished with output: {streamed_text}")
-        st.session_state.messages = result.to_input_list()
-        st.session_state.trace_id = chat_trace.trace_id
-        cls._update_last_message_if_gemini_bug(model_choice)
+            # logger.info(f"Chat finished with output: {streamed_text}")
+            st.session_state.messages = result.to_input_list()
+            st.session_state.trace_id = chat_trace.trace_id
+            cls._update_last_message_if_gemini_bug(model_choice)
+
+        ForecastDatabaseManager.add_general_report_to_database(
+            question_text=prompt_input,
+            background_info=None,
+            resolution_criteria=None,
+            fine_print=None,
+            prediction=None,
+            explanation=streamed_text,
+            page_url=None,
+            price_estimate=None,
+            run_type=ForecastRunType.WEB_APP_CHAT,
+        )
 
     @classmethod
     def _update_last_message_if_gemini_bug(cls, model_choice: str) -> None:

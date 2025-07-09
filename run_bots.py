@@ -20,7 +20,7 @@ from forecasting_tools.forecast_bots.official_bots.q2_template_bot import (
 from forecasting_tools.forecast_bots.other.uniform_probability_bot import (
     UniformProbabilityBot,
 )
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 
 logger = logging.getLogger(__name__)
 dotenv.load_dotenv()

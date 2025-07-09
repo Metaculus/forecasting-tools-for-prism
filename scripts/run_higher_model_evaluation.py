@@ -2,9 +2,9 @@ import asyncio
 import logging
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
-from forecasting_tools.benchmarking.prompt_evaluator import PromptEvaluator
-from forecasting_tools.benchmarking.question_research_snapshot import (
-    QuestionResearchSnapshot,
+from forecasting_tools.auto_optimizers.bot_evaluator import BotEvaluator
+from forecasting_tools.auto_optimizers.question_plus_research import (
+    QuestionPlusResearch,
     ResearchType,
 )
 from forecasting_tools.util.custom_logger import CustomLogger
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 async def run_higher_model_evaluation() -> None:
     # --- Evaluation Parameters ---
-    evaluation_questions = QuestionResearchSnapshot.load_json_from_file_path(
+    evaluation_questions = QuestionPlusResearch.load_json_from_file_path(
         "logs/forecasts/benchmarks/question_snapshots_v1.6.test__230qs.json"
     )
 
@@ -50,8 +50,8 @@ async def run_higher_model_evaluation() -> None:
 
     # --- Run the evaluation ---
     for forecast_llm in forecast_llms:
-        evaluator = PromptEvaluator(
-            evaluation_questions=evaluation_questions,
+        evaluator = BotEvaluator(
+            input_questions=evaluation_questions,
             research_type=ResearchType.ASK_NEWS_SUMMARIES,
             concurrent_evaluation_batch_size=questions_batch_size,
             file_or_folder_to_save_benchmarks="logs/forecasts/benchmarks/",
@@ -65,11 +65,11 @@ async def run_higher_model_evaluation() -> None:
             research_reports_per_question=research_reports_per_question,
             num_predictions_per_research_report=num_predictions_per_research_report,
         )
-        for evaluated_prompt in evaluation_result.evaluated_prompts:
+        for evaluated_prompt in evaluation_result.evaluated_bots:
             logger.info(
-                f"Name: {evaluated_prompt.prompt_config.original_idea.short_name}"
+                f"Name: {evaluated_prompt.bot_config.originating_idea.short_name}"
             )
-            logger.info(f"Config: {evaluated_prompt.prompt_config}")
+            logger.info(f"Config: {evaluated_prompt.bot_config}")
             logger.info(f"Code: {evaluated_prompt.benchmark.code}")
             logger.info(
                 f"Forecast Bot Class Name: {evaluated_prompt.benchmark.forecast_bot_class_name}"
@@ -77,7 +77,7 @@ async def run_higher_model_evaluation() -> None:
             logger.info(f"Cost: {evaluated_prompt.benchmark.total_cost}")
             logger.info(f"Score: {evaluated_prompt.score}")
 
-        logger.info(f"Best prompt: {evaluation_result.best_prompt}")
+        logger.info(f"Best prompt: {evaluation_result.best_bot}")
 
 
 if __name__ == "__main__":

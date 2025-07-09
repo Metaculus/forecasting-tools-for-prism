@@ -1,4 +1,7 @@
 import asyncio
+import logging
+import time
+from typing import Any
 
 import nest_asyncio
 from agents import (
@@ -6,12 +9,22 @@ from agents import (
     CodeInterpreterTool,
     FunctionTool,
     Runner,
-    function_tool,
+    Span,
+    Trace,
+    custom_span,
 )
+from agents import function_tool as ft
+from agents import generation_span as gs
+from agents import trace
 from agents.extensions.models.litellm_model import LitellmModel
 from agents.stream_events import StreamEvent
+from agents.tracing.span_data import CustomSpanData
+from agents.tracing.traces import TraceImpl
 
 from forecasting_tools.ai_models.model_tracker import ModelTracker
+
+logger = logging.getLogger(__name__)
+
 
 nest_asyncio.apply()
 
@@ -30,13 +43,44 @@ class AgentSdkLlm(LitellmModel):
         return response
 
 
+def general_trace_or_span(
+    name: str, data: dict[str, Any] | None = None, **kwargs
+) -> Span[CustomSpanData] | Trace:
+    class NoOpContextManager:
+        """A context manager that does nothing when used in with statements"""
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            return False
+
+        @property
+        def trace_id(self) -> str:
+            return "no-op-trace-id"
+
+    return NoOpContextManager()
+    # Disabled till I'm able to debug this more
+    # try:
+    #     current_trace = GLOBAL_TRACE_PROVIDER.get_current_trace()
+    # except Exception as e:
+    #     logger.warning(f"Error getting current trace: {e}")
+    #     current_trace = None
+    # if current_trace:
+    #     return custom_span(name, data, **kwargs)
+    # else:
+    #     return trace(workflow_name=name, metadata=data, **kwargs)
+
+
 AgentRunner = Runner  # Alias for Runner for later extension
 AgentTool = FunctionTool  # Alias for FunctionTool for later extension
 AiAgent = Agent  # Alias for Agent for later extension
 CodingTool = (
     CodeInterpreterTool  # Alias for CodeInterpreterTool for later extension
 )
-agent_tool = function_tool  # Alias for function_tool for later extension
+agent_tool = ft  # Alias for function_tool for later extension
+ImplementedTrace = TraceImpl  # Alias for TraceImpl for later extension
+generation_span = gs  # Alias for generation_span for later extension
 
 
 def event_to_tool_message(event: StreamEvent) -> str | None:
@@ -74,3 +118,69 @@ def event_to_tool_message(event: StreamEvent) -> str | None:
     if text == "":
         return None
     return text
+
+
+if __name__ == "__main__":
+    # Test tracing/spans. See https://platform.openai.com/traces for visual confirmation
+    with trace("Test Trace A"):
+        with generation_span(
+            model="gpt-4o-mini",
+            input=[{"role": "user", "content": "Test Input"}],
+        ):
+            time.sleep(1)
+        with generation_span(
+            model="gpt-4o-mini",
+            input=[{"role": "user", "content": "Test Input"}],
+        ):
+            time.sleep(1)
+            with generation_span(
+                model="gpt-4o-mini",
+                input=[{"role": "user", "content": "Test Input"}],
+            ):
+                time.sleep(1)
+        with custom_span("Test Span 2"):
+            time.sleep(1)
+
+    with custom_span("Test Span 3"):
+        with generation_span(
+            model="gpt-4o-mini",
+            input=[{"role": "user", "content": "Test Input"}],
+        ):
+            time.sleep(1)
+
+    with general_trace_or_span("Test Trace B"):
+        with generation_span(
+            model="gpt-4o-mini",
+            input=[{"role": "user", "content": "Test Input"}],
+        ):
+            time.sleep(1)
+        with generation_span(
+            model="gpt-4o-mini",
+            input=[{"role": "user", "content": "Test Input"}],
+        ):
+            time.sleep(1)
+            with generation_span(
+                model="gpt-4o-mini",
+                input=[{"role": "user", "content": "Test Input"}],
+            ):
+                time.sleep(1)
+                with general_trace_or_span("Test Span 2"):
+                    time.sleep(1)
+
+    with trace("Test Trace C"):
+        with general_trace_or_span("Test Span 1"):
+            with generation_span(
+                model="gpt-4o-mini",
+                input=[{"role": "user", "content": "Test Input"}],
+            ):
+                time.sleep(1)
+            with generation_span(
+                model="gpt-4o-mini",
+                input=[{"role": "user", "content": "Test Input"}],
+            ):
+                time.sleep(1)
+                with generation_span(
+                    model="gpt-4o-mini",
+                    input=[{"role": "user", "content": "Test Input"}],
+                ):
+                    time.sleep(1)

@@ -2,7 +2,7 @@ from forecasting_tools.data_models.questions import MetaculusQuestion
 from forecasting_tools.forecast_bots.official_bots.q3_template_bot import (
     Q3TemplateBot2024,
 )
-from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
 
 
 class Q3TemplateWithAskNews(Q3TemplateBot2024):

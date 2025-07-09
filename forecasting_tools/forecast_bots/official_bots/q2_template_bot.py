@@ -4,6 +4,9 @@ import logging
 from datetime import datetime
 from typing import Literal
 
+from forecasting_tools.agents_and_tools.research.smart_searcher import (
+    SmartSearcher,
+)
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.data_models.forecast_report import ReasonedPrediction
@@ -18,12 +21,9 @@ from forecasting_tools.data_models.questions import (
     NumericQuestion,
 )
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
-from forecasting_tools.forecast_helpers.asknews_searcher import AskNewsSearcher
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
-from forecasting_tools.forecast_helpers.prediction_extractor import (
-    PredictionExtractor,
-)
-from forecasting_tools.forecast_helpers.smart_searcher import SmartSearcher
+from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.prediction_extractor import PredictionExtractor
 
 logger = logging.getLogger(__name__)
 

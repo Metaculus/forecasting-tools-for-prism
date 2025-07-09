@@ -21,4 +21,5 @@
   "isort.args":["--profile", "black","--line-length", "79"],
   "jupyter.debugJustMyCode": true,
   "debugpy.debugJustMyCode": true,
+  "cursorpyright.analysis.typeCheckingMode": "basic",
 }

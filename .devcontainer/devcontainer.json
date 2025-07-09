@@ -20,6 +20,7 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
+				"anysphere.remote-containers", // This is cursor specific dev container extension. There is a vscode specific one we might want to try to support. I'm not sure if this also supports normal vscode.
 				"ms-python.python",
 				"ms-python.vscode-pylance",
 				"ms-python.isort",
@@ -31,9 +32,18 @@
 				"mhutchie.git-graph",
 				"mechatroner.rainbow-csv",
 				"tamasfe.even-better-toml",
-				"ms-toolsai.jupyter"
+				"ms-toolsai.jupyter",
+				"anthropic.claude-code",
+				"coderabbit.coderabbit-vscode",
+				"oderwat.indent-rainbow"
 			]
 		}
+	},
+
+	"features": {
+		"ghcr.io/joshuanianji/devcontainer-features/github-cli-persistence:1": {}, // Should persist github credentials (but maybe only for gh cli?)
+		"ghcr.io/devcontainers/features/github-cli:1": {},
+		"ghcr.io/devcontainers/features/java:1": {}
 	},
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.

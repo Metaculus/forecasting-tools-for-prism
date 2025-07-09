@@ -8,15 +8,15 @@ from pydantic import BaseModel
 from forecasting_tools.data_models.binary_report import BinaryReport
 from forecasting_tools.data_models.questions import BinaryQuestion
 from forecasting_tools.forecast_bots.main_bot import MainBot
-from forecasting_tools.forecast_helpers.forecast_database_manager import (
-    ForecastDatabaseManager,
-    ForecastRunType,
-)
-from forecasting_tools.forecast_helpers.metaculus_api import MetaculusApi
 from forecasting_tools.front_end.helpers.report_displayer import (
     ReportDisplayer,
 )
 from forecasting_tools.front_end.helpers.tool_page import ToolPage
+from forecasting_tools.helpers.forecast_database_manager import (
+    ForecastDatabaseManager,
+    ForecastRunType,
+)
+from forecasting_tools.helpers.metaculus_api import MetaculusApi
 from forecasting_tools.util.jsonable import Jsonable
 
 logger = logging.getLogger(__name__)

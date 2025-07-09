@@ -35,6 +35,7 @@ async def test_bot_optimizer() -> None:
             num_iterations_per_run=iterations_per_run,
             ideation_llm_name="o4-mini",
             remove_background_info=True,
+            folder_to_save_benchmarks=None,
             initial_prompt_population_size=initial_prompt_population_size,
             survivors_per_iteration=survivors_per_iteration,
             mutated_prompts_per_survivor=mutated_prompts_per_survivor,

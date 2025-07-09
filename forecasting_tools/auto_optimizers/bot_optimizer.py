@@ -1,5 +1,7 @@
 import logging
 
+from pydantic import BaseModel
+
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.auto_optimizers.bot_evaluator import BotEvaluator
@@ -37,6 +39,7 @@ class BotOptimizer:
         num_iterations_per_run: int,
         ideation_llm_name: str,
         remove_background_info: bool,
+        folder_to_save_benchmarks: str | None,
         initial_prompt_population_size: int = 20,
         survivors_per_iteration: int = 5,
         mutated_prompts_per_survivor: int = 3,
@@ -70,6 +73,7 @@ class BotOptimizer:
             - should be used to generate a research report.
             - This research report will be passed to the reasoning prompt.
             - Should explicitly state limits on how much tools should be used (e.g. max tool calls overall or per step)
+            - Should always include a mention that Metaculus predictions should never by shared in the final research report (this could be used to cheat)
             The reasoning part
             - should be used to generate a forecast for a binary question.
             - The forecast must be a probability between 0 and 1.
@@ -114,7 +118,7 @@ class BotOptimizer:
             input_questions=questions,
             research_type=None,
             concurrent_evaluation_batch_size=questions_batch_size,
-            file_or_folder_to_save_benchmarks="logs/forecasts/benchmarks/",
+            file_or_folder_to_save_benchmarks=folder_to_save_benchmarks,
         )
 
         async def evaluate_combined_research_and_reasoning_prompts(
@@ -159,6 +163,65 @@ class BotOptimizer:
             CustomizableBot.validate_combined_research_reasoning_prompt(
                 prompt.text
             )
+            check_metaculus_mention_prompt = clean_indents(
+                f"""
+                # Instructions
+                Please check if the following prompt includes instructions to not share Metaculus predictions in the final research report.
+
+                Please return a json as your answer with the following format:
+                {{
+                    "requires_no_metaculus_mention": bool,
+                    "reasoning": str
+                }}
+
+                # Examples
+                A prompt that contains:
+                > Never share Metaculus predictions in the final research report.
+                would return:
+                {{
+                    "requires_no_metaculus_mention": True,
+                    "reasoning": "The prompt contains the instruction 'Never share Metaculus predictions in the final research report.'"
+                }}
+
+                A prompt that contains not mention of Metaculus predictions would return:
+                {{
+                    "requires_no_metaculus_mention": False,
+                    "reasoning": "The prompt does not contain any instructions to not share Metaculus predictions in the final research report."
+                }}
+
+                A prompt that contains:
+                > Please avoid sharing any Metaculus predictions in your final research response.
+                would return:
+                {{
+                    "requires_no_metaculus_mention": True,
+                    "reasoning": "The prompt contains the instruction 'Please avoid sharing any Metaculus predictions in your final research response.'"
+                }}
+
+                # Your Turn
+
+                The prompt is between the following deliminators <<< >>> deliminators below.
+
+                <<<<<<<<<<<<<<<<<< START OF PROMPT >>>>>>>>>>>>>>>>
+                ```
+                {prompt.text}
+                ```
+                <<<<<<<<<<<<<<<<<< END OF PROMPT >>>>>>>>>>>>>>>>
+                """
+            )
+            llm = GeneralLlm(model=ideation_llm_name)
+
+            class CheckMetaculusMention(BaseModel):
+                requires_no_metaculus_mention: bool
+                reasoning: str
+
+            reasoning_result = await llm.invoke_and_return_verified_type(
+                check_metaculus_mention_prompt,
+                CheckMetaculusMention,
+            )
+            if not reasoning_result.requires_no_metaculus_mention:
+                raise RuntimeError(
+                    f"Prompt does not require not mentioning metaculus predictions in the final research report: {reasoning_result.reasoning}"
+                )
 
         optimizer = PromptOptimizer(
             initial_prompt=ControlPrompt.get_combined_prompt(),

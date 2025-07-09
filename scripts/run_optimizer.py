@@ -34,6 +34,7 @@ async def run_optimizer() -> None:
     reasoning_llm = GeneralLlm(
         model="openrouter/openai/gpt-4.1-mini", temperature=0.3
     )
+    folder_to_save_benchmarks = "logs/forecasts/benchmarks/"
     questions_batch_size = 112
     num_iterations_per_run = 3
     remove_background_info = True
@@ -52,6 +53,7 @@ async def run_optimizer() -> None:
         num_iterations_per_run=num_iterations_per_run,
         ideation_llm_name=ideation_llm,
         remove_background_info=remove_background_info,
+        folder_to_save_benchmarks=folder_to_save_benchmarks,
         initial_prompt_population_size=initial_prompt_population_size,
         survivors_per_iteration=survivors_per_iteration,
         mutated_prompts_per_survivor=mutated_prompts_per_survivor,

@@ -78,6 +78,8 @@ MODEL_CHOICES: list[str] = [
     "openai/o3",
     "openai/o4-mini",
     "openai/gpt-4.1",
+    "gpt-4o",
+    "openrouter/google/gemini-2.5-pro-preview",
 ]
 
 

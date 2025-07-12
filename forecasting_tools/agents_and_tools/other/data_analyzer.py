@@ -4,7 +4,7 @@ import logging
 from pydantic import BaseModel
 
 from forecasting_tools.agents_and_tools.minor_tools import (
-    perplexity_quick_search,
+    perplexity_quick_search_high_context,
 )
 from forecasting_tools.ai_models.agent_wrappers import (
     AgentRunner,
@@ -12,6 +12,7 @@ from forecasting_tools.ai_models.agent_wrappers import (
     CodingTool,
     agent_tool,
     event_to_tool_message,
+    general_trace_or_span,
 )
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 
@@ -25,7 +26,7 @@ class AvailableFile(BaseModel):
 
 class DataAnalyzer:
 
-    def __init__(self, model: str = "gpt-4o") -> None:
+    def __init__(self, model: str = "gpt-4.1") -> None:
         self.model = model
 
     async def run_data_analysis(
@@ -75,7 +76,7 @@ class DataAnalyzer:
             instructions=instructions,
             model=self.model,
             tools=[
-                perplexity_quick_search,
+                perplexity_quick_search_high_context,
                 coding_tool,
             ],
             handoffs=[],
@@ -90,7 +91,7 @@ class DataAnalyzer:
             event_message = event_to_tool_message(event)
             if event_message:
                 final_answer += event_message + "\n\n"
-        final_answer += f"\n\nFinal output: {result.final_output}"
+        final_answer += f"Final output: {result.final_output}"
         return final_answer
 
     @agent_tool
@@ -109,11 +110,19 @@ class DataAnalyzer:
         Format files as a list of dicts with the following format: {"file_name": "string", "file_id": "string"}
         """
         data_analysis = DataAnalyzer()
-        available_files = (
-            [AvailableFile(**file) for file in files] if files else []
-        )
+        available_files = [AvailableFile(**file) for file in files] if files else []
         return asyncio.run(
             data_analysis.run_data_analysis(
                 instruction, additional_context, available_files
             )
         )
+
+
+if __name__ == "__main__":
+    with general_trace_or_span("Test Span 1"):
+        answer = asyncio.run(
+            DataAnalyzer().run_data_analysis(
+                instructions="Please multiple 52.675 x 6.547 x 9867.5476 x 4356.5",
+            )
+        )
+    print(answer)

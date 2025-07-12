@@ -7,7 +7,7 @@ from typing import Any, Callable, Coroutine
 from pydantic import BaseModel, Field
 
 from forecasting_tools.agents_and_tools.minor_tools import (
-    perplexity_pro_search,
+    perplexity_reasoning_pro_search,
 )
 from forecasting_tools.ai_models.agent_wrappers import (
     AgentRunner,
@@ -51,10 +51,10 @@ class OptimizationRun(BaseModel):
 
 
 class PromptOptimizer:
-    """A genetic algorithm-inspired prompt optimizer that evolves prompts through mutation and selection.
+    """A genetic algorithm-inspired prompt optimizer that evolves prompts through mutation, breeding, and selection.
 
     Args:
-        initial_prompts: List of starting prompt strings to optimize from
+        initial_prompt: Starting prompt string to optimize from
         iterations: Number of optimization iterations to run
         ideation_llm_name: Name of the LLM model to use for generating prompt variations
         prompts_to_scores_func: async function that takes a list of prompts and returns a list of scores
@@ -82,9 +82,7 @@ class PromptOptimizer:
         prompts_to_scores_func: Callable[
             [list[ImplementedPrompt]], Coroutine[Any, Any, list[PromptScore]]
         ],
-        format_scores_func: (
-            Callable[[ScoredPrompt], Coroutine[Any, Any, str]] | None
-        ),
+        format_scores_func: Callable[[ScoredPrompt], Coroutine[Any, Any, str]] | None,
         validate_prompt_func: (
             Callable[[ImplementedPrompt], Coroutine[Any, Any, None]] | None
         ),
@@ -121,7 +119,9 @@ class PromptOptimizer:
             return await self._create_optimized_prompt()
 
     async def _create_optimized_prompt(self) -> OptimizationRun:
-        with general_trace_or_span("Initial Population Generation"):
+        iteration_num = 0
+        with general_trace_or_span("Initial Population Generation (Iteration 1)"):
+            iteration_num += 1
             logger.info(
                 f"Generating initial prompt population of size {self.initial_prompt_population_size}"
             )
@@ -145,12 +145,16 @@ class PromptOptimizer:
                 starting_prompts.extend(additional_initial_prompts)
 
             offspring_prompts: list[ImplementedPrompt] = starting_prompts
+            assert (
+                seed_prompt in offspring_prompts
+            ), "Seed prompt not found in offspring prompts"
             all_evaluated_prompts: list[ScoredPrompt] = (
                 await self._evaluate_new_members(offspring_prompts)
             )
             survivors = await self._kill_the_weak(all_evaluated_prompts)
 
-        for iteration_num in range(self.iterations):
+        while iteration_num < self.iterations:
+            iteration_num += 1
             with general_trace_or_span(
                 f"Prompt Optimizer Iteration {iteration_num + 1}",
                 data={"survivors": [s.model_dump() for s in survivors]},
@@ -161,9 +165,7 @@ class PromptOptimizer:
 
                 offspring_prompts = await self._generate_new_prompts(survivors)
 
-                evaluated_prompts = await self._evaluate_new_members(
-                    offspring_prompts
-                )
+                evaluated_prompts = await self._evaluate_new_members(offspring_prompts)
                 all_evaluated_prompts.extend(evaluated_prompts)
                 updated_population = survivors + evaluated_prompts
 
@@ -183,7 +185,7 @@ class PromptOptimizer:
         logger.debug(f"Current survivors: {current_population}")
         best_survivor = current_population[0]
         logger.info(
-            f"Best survivor: {best_survivor.prompt.idea.short_name} with score {best_survivor.score.value:.4f}. Prompt:\n {best_survivor.prompt.text}"
+            f"Best survivor: {best_survivor.prompt.idea.short_name} with score {best_survivor.score.value:.4f}"
         )
         return current_population[: self.survivors_per_iteration]
 
@@ -212,9 +214,7 @@ class PromptOptimizer:
         self, prompts: list[ImplementedPrompt]
     ) -> list[ScoredPrompt]:
         scores = await self.prompt_to_scores_func(prompts)
-        return [
-            ScoredPrompt(prompt=p, score=s) for p, s in zip(prompts, scores)
-        ]
+        return [ScoredPrompt(prompt=p, score=s) for p, s in zip(prompts, scores)]
 
     @retry_async_function(tries=3)
     async def _mutate_prompt(
@@ -251,18 +251,17 @@ class PromptOptimizer:
                 {self.prompt_requirements_explanation}
 
                 # Instructions
-                1. Please analyze the scores from the previous prompt and identify what went wrong.
+                1. Please analyze the scores from the previous prompt and identify what went wrong. You can run 3-5 searches to run this analysis.
                 2. Run 3-10 searches on the web to find inspiration for novel prompt structures, techniques, and ideas that will solve the goal.
                 3. Generate {num_mutations_to_generate} new, distinct PROMPT IDEAS based on the original.
 
                 Please generate exactly {num_mutations_to_generate} new, distinct PROMPT IDEAS based on the original.
-                Each mutation idea must be a concept for a new, complete prompt. The implemented prompt will:
+                Each mutation idea must be a concept for a new, complete prompt.
 
                 For each idea please sequentially follow these policies to determine how much you try to mutate the original prompt:
-                1st idea: "slight modification, like changing wording, adding/removing a sentences or a small paragraph, reording steps, adding emphasis, etc",
-                2nd idea: "significant variation, which should take a generally different approach and be a general rewrite while staying in general theme of the original",
-                3rd idea: "highly diverse mutation/experiment that explores a substantially different structure or set of principles, focus on a completely different idea than in the original. Search until you find something novel.",
-                nth idea: ... continue alternating between significant variation and highly diverse (not slight)...
+                1st idea: "Normal variation, which should take a generally different approach and be a general rewrite while staying in general theme of the original",
+                2nd idea: "Highly Diverse variation, that explores a substantially different structure or set of principles, focus on a completely different idea than in the original. Search until you find something novel.",
+                nth idea: ... continue alternating between normal variation and highly diverse variation...
 
                 # Original Prompt Idea Details
                 Name: {prompt.idea.short_name}
@@ -273,23 +272,28 @@ class PromptOptimizer:
                 {prompt.text}
                 ```
 
-                # Scores from Original Prompt:
+                {"# Scores from Original Prompt:" if scores_str else ""}
                 {scores_str}
 
                 # Ideation Considerations
                 {self.mutation_considerations}
 
                 # Format
+                Below is the format you should use for your output. Fill in each part with your own words (e.g. don't literally say "Mutated Idea Title 1" in your output)
+
+                ```
                 **Mutated Idea Title 1**
-                New idea for prompt mutation 1, specifying in detail how to implement the prompt reflecting the target variation. The implementor will not be shown the original prompt.
+                New idea for prompt mutation 1, specifying in detail how to implement the prompt reflecting the target variation. The implementor will not be shown the original prompt, just this idea and the prompt requirements (so don't repeat the requirements in your idea, but otherwise give a detailed overview).
 
                 **Mutated Idea Title 2**
-                New idea for prompt mutation 2, specifying in detail how to implement the prompt reflecting the target variation. The implementor will not be shown the original prompt.
+                New idea for prompt mutation 2, specifying in detail how to implement the prompt reflecting the target variation. The implementor will not be shown the original prompt, just this idea and the prompt requirements (so don't repeat the requirements in your idea, but otherwise give a detailed overview).
                 ...
                 (up to {num_mutations_to_generate} ideas)
+                ```
+
                 """
             ),
-            tools=[perplexity_pro_search],
+            tools=[perplexity_reasoning_pro_search],
         )
 
         mutation_agent_task = (
@@ -297,9 +301,7 @@ class PromptOptimizer:
             f"Ensure each mutation aligns with the requested degree of variation."
         )
         output = await AgentRunner.run(agent_mutate_ideas, mutation_agent_task)
-        mutated_ideas = await structure_output(
-            output.final_output, list[PromptIdea]
-        )
+        mutated_ideas = await structure_output(output.final_output, list[PromptIdea])
         logger.info(
             f"Successfully structured {len(mutated_ideas)} mutation ideas for prompt '{prompt.idea.short_name}'. Requested {num_mutations_to_generate}."
         )
@@ -374,17 +376,21 @@ class PromptOptimizer:
                 {parent_details_str}
 
                 # Format
+                Below is the format you should use for your output. Fill in each part with your own words (e.g. don't literally say "Mutated Idea Title 1" in your output)
+
+                ```
                 **Bred Idea Title 1**
-                New idea for bred prompt 1, explaining how it combines elements from parents in detail.
+                New idea for bred prompt 1, explaining how it combines elements from parents in detail. The implementor will not be shown the original prompts, just this idea and the prompt requirements (so don't repeat the requirements in your idea, but otherwise give a detailed overview).
 
                 **Bred Idea Title 2**
-                New idea for bred prompt 2, explaining how it combines elements from parents in detail.
+                New idea for bred prompt 2, explaining how it combines elements from parents in detail. The implementor will not be shown the original prompts, just this idea and the prompt requirements (so don't repeat the requirements in your idea, but otherwise give a detailed overview).
                 ...
                 (up to {num_to_breed} ideas)
+                ```
                 """
             ),
             tools=[
-                perplexity_pro_search
+                perplexity_reasoning_pro_search
             ],  # Allow research for inspiration if needed
         )
 
@@ -394,9 +400,7 @@ class PromptOptimizer:
         )
         output = await AgentRunner.run(agent_breed_ideas, breeding_agent_task)
 
-        bred_ideas = await structure_output(
-            output.final_output, list[PromptIdea]
-        )
+        bred_ideas = await structure_output(output.final_output, list[PromptIdea])
 
         if len(bred_ideas) != num_to_breed:
             raise ValueError(
@@ -417,22 +421,27 @@ class PromptOptimizer:
         originating_ideas: list[list[PromptIdea]],
     ) -> list[ImplementedPrompt]:
         if len(prompt_ideas) != len(originating_ideas):
-            raise ValueError(
+            logger.warning(
                 f"Number of prompt ideas ({len(prompt_ideas)}) does not match number of originating ideas ({len(originating_ideas)}). Cannot map these together."
             )
+            originating_ideas = [
+                [
+                    PromptIdea(
+                        short_name="Error",
+                        full_text="Failed to match idea to originating ideas",
+                    )
+                ]
+                for _ in range(len(prompt_ideas))
+            ]
         tasks = [
             self._implement_prompt_idea(idea, originating_ideas)
             for idea, originating_ideas in zip(prompt_ideas, originating_ideas)
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         implemented_prompts = [
-            result
-            for result in results
-            if not isinstance(result, BaseException)
+            result for result in results if not isinstance(result, BaseException)
         ]
-        errors = [
-            result for result in results if isinstance(result, BaseException)
-        ]
+        errors = [result for result in results if isinstance(result, BaseException)]
         for error in errors:
             logger.error(f"Error implementing prompt idea: {error}")
 

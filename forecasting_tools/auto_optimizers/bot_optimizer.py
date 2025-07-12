@@ -5,14 +5,9 @@ from pydantic import BaseModel
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.auto_optimizers.bot_evaluator import BotEvaluator
-from forecasting_tools.auto_optimizers.control_group_prompt import (
-    ControlPrompt,
-)
+from forecasting_tools.auto_optimizers.control_prompt import ControlPrompt
 from forecasting_tools.auto_optimizers.customizable_bot import CustomizableBot
-from forecasting_tools.auto_optimizers.prompt_data_models import (
-    BotConfig,
-    ResearchTool,
-)
+from forecasting_tools.auto_optimizers.prompt_data_models import BotConfig, ResearchTool
 from forecasting_tools.auto_optimizers.prompt_optimizer import (
     ImplementedPrompt,
     OptimizationRun,
@@ -97,6 +92,8 @@ class BotOptimizer:
             - Whether you want to call tools in parallel at each step or not
             - Reasoning formats and length (consider all varieties)
             - Reasoning strategies (i.e. which steps in which order, with what criteria for what steps)
+            - Whether to cite sources/links in the research report or not
+            - Whether to keep it simple or try something more complex
             """
         )
         template_variables_explanation = clean_indents(
@@ -127,12 +124,30 @@ class BotOptimizer:
             prompts_to_evaluate: list[ImplementedPrompt],
         ) -> list[PromptScore]:
             configs = []
+            seed_prompt_found = False
             for prompt in prompts_to_evaluate:
                 research_prompt, reasoning_prompt = (
                     CustomizableBot.split_combined_research_reasoning_prompt(
                         prompt.text
                     )
                 )
+                if (
+                    research_prompt.strip()
+                    == ControlPrompt.get_seed_research_prompt().strip()
+                ):
+                    if not seed_prompt_found:
+                        seed_prompt_found = True
+                        logger.info(
+                            "Found seed prompt and replacing it with control prompt"
+                        )
+                    else:
+                        raise RuntimeError("Found multiple seed prompts")
+
+                    research_prompt = ControlPrompt.get_control_research_prompt()
+                    prompt.text = CustomizableBot.combine_research_reasoning_prompt(
+                        research_prompt, reasoning_prompt
+                    )  # This is bad practice, but I'm tired, and just need it to work lol. Fix this later.
+
                 configs.append(
                     BotConfig(
                         reasoning_prompt_template=reasoning_prompt,
@@ -152,9 +167,7 @@ class BotOptimizer:
             ), f"Number of evaluated bots ({len(evaluated_bots)}) does not match number of prompts to evaluate ({len(prompts_to_evaluate)})"
 
             prompt_scores = []
-            for evaluated_bot, prompt in zip(
-                evaluated_bots, prompts_to_evaluate
-            ):
+            for evaluated_bot, prompt in zip(evaluated_bots, prompts_to_evaluate):
                 benchmark = evaluated_bot.benchmark
                 prompt_scores.append(
                     PromptScore(
@@ -166,13 +179,11 @@ class BotOptimizer:
                 )
                 assert (
                     benchmark.bot_prompt == prompt.text
-                ), f"Prompt {prompt.text} does not match prompt in benchmark {benchmark.bot_prompt}"
+                ), f"Prompt does not match prompt in benchmark.\nPrompt: {prompt.text}\n\n\n\nBenchmark Prompt: {benchmark.bot_prompt}"
             return prompt_scores
 
         async def validate_prompt(prompt: ImplementedPrompt) -> None:
-            CustomizableBot.validate_combined_research_reasoning_prompt(
-                prompt.text
-            )
+            CustomizableBot.validate_combined_research_reasoning_prompt(prompt.text)
             check_metaculus_mention_prompt = clean_indents(
                 f"""
                 # Instructions
@@ -193,7 +204,7 @@ class BotOptimizer:
                     "reasoning": "The prompt contains the instruction 'Never share Metaculus predictions in the final research report.'"
                 }}
 
-                A prompt that contains not mention of Metaculus predictions would return:
+                A prompt that contains no mention of Metaculus predictions would return:
                 {{
                     "requires_no_metaculus_mention": False,
                     "reasoning": "The prompt does not contain any instructions to not share Metaculus predictions in the final research report."
@@ -234,7 +245,7 @@ class BotOptimizer:
                 )
 
         optimizer = PromptOptimizer(
-            initial_prompt=ControlPrompt.get_combined_prompt(),
+            initial_prompt=ControlPrompt.get_seed_combined_prompt(),
             iterations=num_iterations_per_run,
             ideation_llm_name=ideation_llm_name,
             prompts_to_scores_func=evaluate_combined_research_and_reasoning_prompts,
@@ -264,13 +275,13 @@ class BotOptimizer:
         best_prompts = best_prompts[:5]
         message = "Best prompts:\n"
         for sp in best_prompts:
-            message += "\n\n------------------------------"
+            message += "\n\n\n\n################################\n\n\n\n"
             message += f"\nScore: {sp.score.value}"
+            message += f"\nCost: {sp.score.metadata['benchmark'].total_cost}"
             message += f"\nIdea Name: {sp.prompt.idea.short_name}"
             message += f"\nIdea Description: {sp.prompt.idea.full_text}"
             message += f"\nPrompt: {sp.prompt.text}"
-            message += f"\nOriginating Ideas: {sp.prompt.originating_ideas}"
-            message += f"\nCost: {sp.score.metadata['benchmark'].total_cost}"
+            message += f"\nOriginating Ideas: {[idea.short_name for idea in sp.prompt.originating_ideas]}"
         logger.info(message)
 
     @staticmethod
@@ -283,9 +294,7 @@ class BotOptimizer:
             if len(benchmark.forecast_reports) > 3
             else len(benchmark.forecast_reports)
         )
-        worst_reports = benchmark.get_bottom_n_forecast_reports(
-            num_worst_reports
-        )
+        worst_reports = benchmark.get_bottom_n_forecast_reports(num_worst_reports)
 
         report_str = f"Below are the worst {num_worst_reports} scores from the previous prompt. These are baseline scores (100pts is perfect forecast, -897pts is worst possible forecast, and 0pt is forecasting 50%):\n"
         report_str += f"<><><><><><><><><><><><><><> TOP {num_worst_reports} WORST REPORTS <><><><><><><><><><><><><><>\n"
@@ -301,5 +310,7 @@ class BotOptimizer:
                 ```{report.first_rationale}```
                 """
             )
-        report_str += "<><><><><><><><><><><><><><> END OF REPORTS <><><><><><><><><><><><><><>\n"
+        report_str += (
+            "<><><><><><><><><><><><><><> END OF REPORTS <><><><><><><><><><><><><><>\n"
+        )
         return report_str

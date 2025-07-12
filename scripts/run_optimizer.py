@@ -3,11 +3,8 @@ import logging
 
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.auto_optimizers.bot_optimizer import BotOptimizer
-from forecasting_tools.auto_optimizers.prompt_data_models import (
-    ResearchTool,
-    ToolName,
-)
-from forecasting_tools.data_models.questions import MetaculusQuestion
+from forecasting_tools.auto_optimizers.prompt_data_models import ResearchTool, ToolName
+from forecasting_tools.data_models.data_organizer import DataOrganizer
 from forecasting_tools.util.custom_logger import CustomLogger
 
 logger = logging.getLogger(__name__)
@@ -15,27 +12,33 @@ logger = logging.getLogger(__name__)
 
 async def run_optimizer() -> None:
     # ----- Settings for the optimizer -----
-    metaculus_question_path = "questions.json"
-    questions = MetaculusQuestion.load_json_from_file_path(
-        metaculus_question_path
+    metaculus_question_path = (
+        "logs/forecasts/benchmarks/questions_v3.0.train__50qs.json"
     )
+    questions = DataOrganizer.load_questions_from_file_path(metaculus_question_path)
+    questions_batch_size = 25
     research_tools = [
         ResearchTool(
             tool_name=ToolName.PERPLEXITY_LOW_COST,
-            max_calls=1,
+            max_calls=7,
         ),
         ResearchTool(
             tool_name=ToolName.ASKNEWS,
+            max_calls=2,
+        ),
+        ResearchTool(
+            tool_name=ToolName.DATA_ANALYZER,
+            max_calls=1,
+        ),
+        ResearchTool(
+            tool_name=ToolName.PERPLEXITY_REASONING_PRO_SEARCH,
             max_calls=1,
         ),
     ]
-    ideation_llm = "openrouter/google/gemini-2.5-pro-preview"
-    research_coordination_llm = "openrouter/openai/gpt-4.1-mini"
-    reasoning_llm = GeneralLlm(
-        model="openrouter/openai/gpt-4.1-mini", temperature=0.3
-    )
+    ideation_llm = "openrouter/google/gemini-2.5-pro"
+    research_coordination_llm = "openai/o3"
+    reasoning_llm = GeneralLlm(model="openai/o3", temperature=None)
     folder_to_save_benchmarks = "logs/forecasts/benchmarks/"
-    questions_batch_size = 112
     num_iterations_per_run = 3
     remove_background_info = True
     initial_prompt_population_size = 20

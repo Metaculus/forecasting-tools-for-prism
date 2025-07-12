@@ -10,10 +10,9 @@ import typeguard
 
 from forecasting_tools.cp_benchmarking.benchmark_for_bot import BenchmarkForBot
 from forecasting_tools.data_models.binary_report import BinaryReport
+from forecasting_tools.data_models.data_organizer import ReportTypes
 from forecasting_tools.data_models.forecast_report import ForecastReport
-from forecasting_tools.front_end.helpers.report_displayer import (
-    ReportDisplayer,
-)
+from forecasting_tools.front_end.helpers.report_displayer import ReportDisplayer
 from forecasting_tools.util import file_manipulation
 from forecasting_tools.util.stats import ConfidenceIntervalCalculator
 
@@ -59,18 +58,14 @@ def display_score_overview(reports: list[BinaryReport]) -> None:
         )
 
 
-def display_stats_for_report_type(
-    reports: list[BinaryReport], title: str
-) -> None:
+def display_stats_for_report_type(reports: list[BinaryReport], title: str) -> None:
     if len(reports) == 0:
         logger.warning(f"No reports found for {title}")
         return
     average_expected_baseline_score = (
         BinaryReport.calculate_average_expected_baseline_score(reports)
     )
-    average_deviation = BinaryReport.calculate_average_deviation_points(
-        reports
-    )
+    average_deviation = BinaryReport.calculate_average_deviation_points(reports)
     st.markdown(
         f"""
         #### {title}
@@ -86,7 +81,7 @@ def display_questions_and_forecasts(reports: list[BinaryReport]) -> None:
         st.subheader("Score list")
         st.write(
             "- **🎯:** Expected Baseline Score\n"
-            "- **🤖:** Bot Prediction\n"
+            "- **💻 :** Bot Prediction\n"
             "- **👥:** Community Prediction\n"
         )
         certain_reports = [
@@ -112,16 +107,12 @@ def display_questions_and_forecasts(reports: list[BinaryReport]) -> None:
         )
 
 
-def display_question_stats_in_list(
-    report_list: list[BinaryReport], title: str
-) -> None:
+def display_question_stats_in_list(report_list: list[BinaryReport], title: str) -> None:
     st.subheader(title)
     sorted_reports = sorted(
         report_list,
         key=lambda r: (
-            r.expected_baseline_score
-            if r.expected_baseline_score is not None
-            else -1
+            r.expected_baseline_score if r.expected_baseline_score is not None else -1
         ),
         reverse=True,
     )
@@ -132,11 +123,13 @@ def display_question_stats_in_list(
             else -1
         )
         if report.question.page_url:
-            question_text = f"[{report.question.question_text}]({report.question.page_url})"
+            question_text = (
+                f"[{report.question.question_text}]({report.question.page_url})"
+            )
         else:
             question_text = report.question.question_text
         st.write(
-            f"- **🎯:** {score:.4f} | **🤖:** {report.prediction:.2%} | "
+            f"- **🎯:** {score:.4f} | **💻:** {report.prediction:.2%} | "
             f"**👥:** {report.community_prediction:.2%} | **Question:** {question_text}"
         )
 
@@ -147,8 +140,7 @@ def display_benchmark_list(benchmarks: list[BenchmarkForBot]) -> None:
 
     st.markdown("# Select Benchmark")
     benchmark_options = [
-        f"{b.name} (Score: {b.average_expected_baseline_score:.4f})"
-        for b in benchmarks
+        f"{b.name} (Score: {b.average_expected_baseline_score:.4f})" for b in benchmarks
     ]
     selected_benchmark_name = st.selectbox(
         "Select a benchmark to view details:", benchmark_options
@@ -161,9 +153,7 @@ def display_benchmark_list(benchmarks: list[BenchmarkForBot]) -> None:
 
     with st.expander(benchmark.name, expanded=False):
         st.markdown(f"**Description:** {benchmark.description}")
-        st.markdown(
-            f"**Number of Input Questions:** {benchmark.num_input_questions}"
-        )
+        st.markdown(f"**Number of Input Questions:** {benchmark.num_input_questions}")
         st.markdown(
             f"**Number of Successful forecasts:** {len(benchmark.forecast_reports)}"
         )
@@ -172,12 +162,8 @@ def display_benchmark_list(benchmarks: list[BenchmarkForBot]) -> None:
             if benchmark.num_failed_forecasts is not None
             else "N/A"
         )
-        st.markdown(
-            f"**Number of Failed forecasts:** {failed_forecast_reports}"
-        )
-        st.markdown(
-            f"**Time Taken (minutes):** {benchmark.time_taken_in_minutes}"
-        )
+        st.markdown(f"**Number of Failed forecasts:** {failed_forecast_reports}")
+        st.markdown(f"**Time Taken (minutes):** {benchmark.time_taken_in_minutes}")
         st.markdown(f"**Total Cost:** {benchmark.total_cost}")
         st.markdown(f"**Git Commit Hash:** {benchmark.git_commit_hash}")
         st.markdown(
@@ -188,9 +174,7 @@ def display_benchmark_list(benchmarks: list[BenchmarkForBot]) -> None:
             reports = typeguard.check_type(
                 benchmark.forecast_reports, list[BinaryReport]
             )
-            average_deviation = (
-                BinaryReport.calculate_average_deviation_points(reports)
-            )
+            average_deviation = BinaryReport.calculate_average_deviation_points(reports)
             st.markdown(
                 f"**Average Deviation Score:** {average_deviation:.2%} percentage points"
             )
@@ -328,24 +312,17 @@ def display_benchmark_comparison_graphs(
         ]
 
         reports = typeguard.check_type(reports, Sequence[BinaryReport])
-        certain_reports = typeguard.check_type(
-            certain_reports, Sequence[BinaryReport]
-        )
+        certain_reports = typeguard.check_type(certain_reports, Sequence[BinaryReport])
         uncertain_reports = typeguard.check_type(
             uncertain_reports, Sequence[BinaryReport]
         )
 
         if len(certain_reports) > 0:
             average_certain_expected_baseline_score = (
-                BinaryReport.calculate_average_expected_baseline_score(
-                    certain_reports
-                )
+                BinaryReport.calculate_average_expected_baseline_score(certain_reports)
             )
             average_certain_deviation_score = (
-                BinaryReport.calculate_average_deviation_points(
-                    certain_reports
-                )
-                * 100
+                BinaryReport.calculate_average_deviation_points(certain_reports) * 100
             )
         else:
             average_certain_expected_baseline_score = None
@@ -358,10 +335,7 @@ def display_benchmark_comparison_graphs(
                 )
             )
             average_uncertain_deviation_score = (
-                BinaryReport.calculate_average_deviation_points(
-                    uncertain_reports
-                )
-                * 100
+                BinaryReport.calculate_average_deviation_points(uncertain_reports) * 100
             )
         else:
             average_uncertain_expected_baseline_score = None
@@ -422,9 +396,7 @@ def display_benchmark_comparison_graphs(
     )
 
     # Mark highest scores with stars (higher is better for baseline score)
-    max_scores = df.groupby("Category")["Expected Baseline Score"].transform(
-        "max"
-    )
+    max_scores = df.groupby("Category")["Expected Baseline Score"].transform("max")
     df["Is Best Expected"] = df["Expected Baseline Score"] == max_scores
     font_size = 11
 
@@ -474,9 +446,7 @@ def display_benchmark_comparison_graphs(
         yaxis=dict(tickfont=dict(size=font_size)),
     )
 
-    add_star_annotations(
-        fig, df, "Benchmark", "Deviation Score", "Is Best Deviation"
-    )
+    add_star_annotations(fig, df, "Benchmark", "Deviation Score", "Is Best Deviation")
 
     st.plotly_chart(fig)
 
@@ -499,8 +469,7 @@ def make_perfect_benchmark(
             report.prediction = report.community_prediction
     if reports_without_community_predictions:
         urls = [
-            report.question.page_url
-            for report in reports_without_community_predictions
+            report.question.page_url for report in reports_without_community_predictions
         ]
         raise ValueError(
             f"Found {len(reports_without_community_predictions)} reports without community predictions: {urls}"
@@ -512,9 +481,7 @@ def make_perfect_benchmark(
 
 def display_errors_of_benchmarks(benchmarks: list[BenchmarkForBot]) -> None:
     benchmarks_with_zero_forecasts = [
-        benchmark
-        for benchmark in benchmarks
-        if len(benchmark.forecast_reports) == 0
+        benchmark for benchmark in benchmarks if len(benchmark.forecast_reports) == 0
     ]
     benchmarks_with_errors = [
         benchmark for benchmark in benchmarks if benchmark.failed_report_errors
@@ -525,9 +492,7 @@ def display_errors_of_benchmarks(benchmarks: list[BenchmarkForBot]) -> None:
 
     with st.expander("Empty/Errored Benchmarks", expanded=False):
         if benchmarks_with_zero_forecasts:
-            st.write(
-                "These are benchmark files that have 0 successful forecasts"
-            )
+            st.write("These are benchmark files that have 0 successful forecasts")
         for benchmark in benchmarks_with_zero_forecasts:
             st.write(f"- {benchmark.name}")
 
@@ -542,6 +507,36 @@ def display_errors_of_benchmarks(benchmarks: list[BenchmarkForBot]) -> None:
             )
             for error in benchmark.failed_report_errors:
                 st.write(f"- **Error:** {error}")
+
+
+def display_metaculus_research_reports(benchmarks: list[BenchmarkForBot]) -> None:
+    metaculus_reports: list[tuple[str, ReportTypes]] = []
+
+    for benchmark in benchmarks:
+        for report in benchmark.forecast_reports:
+            try:
+                research_content = report.research.lower()
+                if "metaculus" in research_content:
+                    metaculus_reports.append((benchmark.name, report))
+            except Exception as e:
+                logger.warning(f"Error accessing research content for report: {e}")
+
+    if not metaculus_reports:
+        return
+
+    with st.expander("Reports with Metaculus in Research", expanded=False):
+        st.write(
+            f"Found {len(metaculus_reports)} reports containing 'Metaculus' in their research section:"
+        )
+        for benchmark_name, report in metaculus_reports:
+            st.write(f"# {benchmark_name}")
+            question_text = (
+                f"[{report.question.question_text}]({report.question.page_url})"
+            )
+            st.write(f"**Question:** {question_text}")
+            st.write("**Research Excerpt:**")
+            st.write(report.research.strip("#"))
+            st.write("---")
 
 
 def display_main_page(benchmarks: list[BenchmarkForBot]) -> None:
@@ -610,15 +605,13 @@ def run_benchmark_streamlit_page(
 
     if selected_files:
         try:
-            all_successful_benchmarks, all_benchmarks = (
-                load_benchmarks_from_files(selected_files)
+            all_successful_benchmarks, all_benchmarks = load_benchmarks_from_files(
+                selected_files
             )
 
             logger.info(f"Loaded {len(all_successful_benchmarks)} benchmarks")
 
-            perfect_benchmark = make_perfect_benchmark(
-                all_successful_benchmarks[0]
-            )
+            perfect_benchmark = make_perfect_benchmark(all_successful_benchmarks[0])
             all_successful_benchmarks.insert(0, perfect_benchmark)
 
             benchmark_options = []
@@ -635,6 +628,7 @@ def run_benchmark_streamlit_page(
             )
 
             display_errors_of_benchmarks(all_benchmarks)
+            display_metaculus_research_reports(all_benchmarks)
 
             if selected_benchmarks:
                 filtered_benchmarks = [

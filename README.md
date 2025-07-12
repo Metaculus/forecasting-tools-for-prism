@@ -67,7 +67,7 @@ bot = TemplateBot(
     folder_to_save_reports_to="logs/forecasts/",  # Where to save detailed reports
     skip_previously_forecasted_questions=False,
     llms={ # LLM models to use for different tasks. Will use default llms if not specified. Requires the relevant provider environment variables to be set.
-        "default": GeneralLlm(model="anthropic/claude-3-5-sonnet-20240620", temperature=0),
+        "default": GeneralLlm(model="openrouter/google/gemini-2.5-pro", temperature=0),
         "summarizer": "openai/gpt-4o-mini",
     }
 )
@@ -80,6 +80,18 @@ for report in reports:
     print(f"\nQuestion: {report.question.question_text}")
     print(f"Prediction: {report.prediction}")
 ```
+
+
+    Question: Will a 2025 Major Atlantic Hurricane make landfall before September?
+    Prediction: 0.35
+
+    Question: Will China enact an export ban on a rare earth element to the United States before September 1, 2025?
+    Prediction: 0.15
+
+    Question: Will Israel strike the Iranian military in Iran again, before September 2025?
+    Prediction: 0.28
+
+
 
 ### Forecasting Outside a Tournament
 
@@ -812,11 +824,10 @@ with MonetaryCostManager(max_cost) as cost_manager:
     print(f"Current cost: ${current_cost:.2f}")
 ```
 
-
 # Local Development
 
 ## Environment Variables
-The environment variables you need can be found in ```.env.template```. Copy this template as ```.env``` and fill it in. As of last update, you only strictly need OPENAI_API_KEY and EXA_API_KEY.
+The environment variables you need can be found in ```.env.template```. Copy this template as ```.env``` and fill it in.
 
 ## Docker Dev Container
 Dev containers are reliable ways to make sure environments work on everyone's machine the first try and so you don't have to spend hours setting up your environment (especially if you have Docker already installed). If you would rather just use poetry, without the dev container, you can skip to "Alternatives to Docker". Otherwise, to get your development environment up and running, you need to have Docker Engine installed and running. Once you do, you can use the VSCode dev container pop-up to automatically set up everything for you.
@@ -833,7 +844,9 @@ First download and setup Docker Engine using the instructions at the link below 
 
 
 ### Starting the container
-Once Docker is installed, when you open up the project folder in VSCode, you will see a pop up noting that you have a setup for a dev container, and asking if you would like to open the folder in a container. You will want to click "open in container". This will automatically set up everything you need and bring you into the container. If the Docker process times out in the middle of installing python packages you can run the `.devcontiner/postinstall.sh` manually. You may need to have the VSCode Docker extension and/or devcontainer extension downloaded in order for the pop up to appear.
+Once Docker is installed, when you open up the project folder in VSCode, you will see a pop up noting that you have a setup for a dev container, and asking if you would like to open the folder in a container. You will want to click "open in container". This will automatically set up everything you need and bring you into the container. If it doesn't show up, press `ctrl+shift+P` and type in `devcontainers: build and reopen in remote container`
+
+If the Docker process times out in the middle of installing python packages you can run the `.devcontiner/postinstall.sh` manually. You may need to have the VSCode Docker extension and/or devcontainer extension downloaded in order for the pop up to appear.
 
 Once you are in the container, poetry should have already installed a virtual environment. For VSCode features to use this environment, you will need to select the correct python interpreter. You can do this by pressing `Ctrl + Shift + P` and then typing `Python: Select Interpreter`. Then select the interpreter that starts with `.venv`.
 
@@ -849,14 +862,12 @@ If you choose not to run Docker, you can use poetry to set up a local virtual en
 
 
 ## Running the Front End
-You can run any front end folder in the front_end directory by executing `streamlit run front_end/Home.py`. This will start a development server for you that you can run.
-
-Streamlit makes it very easy to publish demos. If you change up the bot(s) within the front_end, you can quickly deploy a free demo others can play with (look up streamlit cloud).
+You can run any front end folder in the front_end directory by executing `streamlit run front_end/main.py`. This will start a development server for you that you can run. Streamlit makes it very easy to publish demos.
 
 ## Testing
-This repository uses pytest tests are subdivided into folders 'unit_tests', 'low_cost_or_live_api', 'expensive'. Unit tests should always pass, while the other tests are for sanity checking. The low cost folder should be able to be run on mass without a huge cost to you. Do not run `pytest` without specifying which folder you want or else you will incur some large expenses from the 'expensive' folder.
+This repository uses pytest tests are subdivided into folders 'unit_tests', 'integration'. Unit tests should always pass. You can run `pytest code_tests/unit_tests` or just `pytest` to run all of these
 
-Also it's helpful to use the log file that is automatically placed at `logs/latest.log`. You may need to set `FILE_WRITING_ALLOWED=TRUE` in .env for this to work.
+Also it's helpful to use the log file that is automatically placed at `logs/latest.log`
 
 # Contributing
 
@@ -886,6 +897,7 @@ Also it's helpful to use the log file that is automatically placed at `logs/late
 2. **Testing**
    - Add tests where appropriate for new functionality. We aren't shooting for full code coverage, but you shouldn't make none.
    - Run unit tests locally before merging to check if you broke anything. See the 'Testing' section.
+   - Integration tests often ping live LLM APIs and so will incur a non negligible cost but moderate cost. If you are able please run these as well.
 
 ## Questions or Issues?
 

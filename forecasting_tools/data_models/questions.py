@@ -4,8 +4,10 @@ import logging
 import textwrap
 from datetime import datetime
 from enum import Enum
+from typing import Literal
 
-from pydantic import AliasChoices, BaseModel, Field
+import typeguard
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 from forecasting_tools.util.jsonable import Jsonable
 
@@ -17,6 +19,26 @@ class QuestionState(Enum):
     OPEN = "open"
     RESOLVED = "resolved"
     CLOSED = "closed"
+
+
+class CanceledResolution(Enum):
+    ANNULLED = "annulled"
+    AMBIGUOUS = "ambiguous"
+
+
+class OutOfBoundsResolution(Enum):
+    ABOVE_UPPER_BOUND = "above_upper_bound"
+    BELOW_LOWER_BOUND = "below_lower_bound"
+    # NOTE: Sometimes the numeric resolution is a also number that is above/below bounds. OutOfBoundsResolution should be used when the resolution is known to be out of bounds but its exact value is unknown.
+
+
+BinaryResolution = bool | CanceledResolution
+NumericResolution = float | CanceledResolution | OutOfBoundsResolution
+DateResolution = datetime | CanceledResolution | OutOfBoundsResolution
+MultipleChoiceResolution = str | CanceledResolution
+ResolutionType = (
+    BinaryResolution | NumericResolution | DateResolution | MultipleChoiceResolution
+)
 
 
 class MetaculusQuestion(BaseModel, Jsonable):
@@ -33,17 +55,26 @@ class MetaculusQuestion(BaseModel, Jsonable):
     resolution_criteria: str | None = None
     fine_print: str | None = None
     background_info: str | None = None
-    unit_of_measure: str | None = None
-    close_time: datetime | None = None
+    unit_of_measure: str | None = None  # TODO: Move this field to continuous questions
+    close_time: datetime | None = (
+        None  # Time that the question was closed to new forecasts
+    )
     actual_resolution_time: datetime | None = None
     scheduled_resolution_time: datetime | None = None
-    published_time: datetime | None = None
-    open_time: datetime | None = None
+    published_time: datetime | None = (
+        None  # Time that the question was visible on the site
+    )
+    open_time: datetime | None = (
+        None  # Time the question was able to be forecasted on by individuals
+    )
     date_accessed: datetime = Field(default_factory=datetime.now)
     already_forecasted: bool = False
     tournament_slugs: list[str] = Field(default_factory=list)
+    default_project_id: int | None = None
     includes_bots_in_aggregates: bool | None = None
     cp_reveal_time: datetime | None = None  # Community Prediction Reveal Time
+    question_weight: float | None = None
+    resolution_string: str | None = None
     api_json: dict = Field(
         description="The API JSON response used to create the question",
         default_factory=dict,
@@ -84,35 +115,28 @@ class MetaculusQuestion(BaseModel, Jsonable):
             page_url=f"https://www.metaculus.com/questions/{post_id}",
             num_forecasters=post_api_json["nr_forecasters"],
             num_predictions=post_api_json["forecasts_count"],
-            close_time=cls._parse_api_date(
-                post_api_json.get("scheduled_close_time")
-            ),
+            close_time=cls._parse_api_date(post_api_json.get("scheduled_close_time")),
             actual_resolution_time=cls._parse_api_date(
                 question_json.get("actual_resolve_time")
             ),
             scheduled_resolution_time=cls._parse_api_date(
                 post_api_json.get("scheduled_resolve_time")
             ),
-            published_time=cls._parse_api_date(
-                post_api_json.get("published_at")
-            ),
-            cp_reveal_time=cls._parse_api_date(
-                question_json.get("cp_reveal_time")
-            ),
+            published_time=cls._parse_api_date(post_api_json.get("published_at")),
+            cp_reveal_time=cls._parse_api_date(question_json.get("cp_reveal_time")),
             open_time=cls._parse_api_date(post_api_json.get("open_time")),
             already_forecasted=is_forecasted,
             tournament_slugs=tournament_slugs,
-            includes_bots_in_aggregates=question_json[
-                "include_bots_in_aggregates"
-            ],
+            default_project_id=post_api_json["projects"]["default_project"]["id"],
+            includes_bots_in_aggregates=question_json["include_bots_in_aggregates"],
+            question_weight=question_json["question_weight"],
+            resolution_string=question_json.get("resolution"),
             api_json=post_api_json,
         )
         return question
 
     @classmethod
-    def _parse_api_date(
-        cls, date_value: str | float | None
-    ) -> datetime | None:
+    def _parse_api_date(cls, date_value: str | float | None) -> datetime | None:
         if date_value is None:
             return None
 
@@ -162,9 +186,54 @@ class MetaculusQuestion(BaseModel, Jsonable):
         )
         return question_details.strip()
 
+    @property
+    def typed_resolution(
+        self,
+    ) -> ResolutionType | None:
+        if self.resolution_string is None:
+            return None
+
+        assert isinstance(self.resolution_string, str)
+
+        if self.resolution_string == "yes":
+            return True
+        elif self.resolution_string == "no":
+            return False
+        elif self.resolution_string in [v.value for v in CanceledResolution]:
+            return CanceledResolution(self.resolution_string)
+        elif self.resolution_string in [v.value for v in OutOfBoundsResolution]:
+            return OutOfBoundsResolution(self.resolution_string)
+        else:
+            try:
+                return float(self.resolution_string)
+            except ValueError:
+                try:
+                    # Try parsing as ISO 8601 with timezone
+                    return datetime.fromisoformat(self.resolution_string)
+                except ValueError:
+                    return self.resolution_string
+
+    def get_question_type(
+        self,
+    ) -> Literal["binary", "date", "numeric", "multiple_choice"]:
+        try:
+            return self.question_type  # type: ignore
+        except Exception as e:
+            raise AttributeError(
+                f"Question type not found for {self.__class__.__name__}. Error: {e}"
+            ) from e
+
 
 class BinaryQuestion(MetaculusQuestion):
+    question_type: Literal["binary"] = "binary"
     community_prediction_at_access_time: float | None = None
+
+    @property
+    def binary_resolution(self) -> BinaryResolution | None:
+        resolution = typeguard.check_type(
+            self.typed_resolution, BinaryResolution | None
+        )
+        return resolution
 
     @classmethod
     def from_metaculus_api_json(cls, api_json: dict) -> BinaryQuestion:
@@ -172,9 +241,7 @@ class BinaryQuestion(MetaculusQuestion):
         try:
             q2_center_community_prediction = api_json["question"]["aggregations"]["recency_weighted"]["latest"]["centers"]  # type: ignore
             assert len(q2_center_community_prediction) == 1
-            community_prediction_at_access_time = (
-                q2_center_community_prediction[0]
-            )
+            community_prediction_at_access_time = q2_center_community_prediction[0]
         except (KeyError, TypeError):
             community_prediction_at_access_time = None
         return BinaryQuestion(
@@ -218,11 +285,28 @@ class BoundedQuestionMixin:
 
 
 class DateQuestion(MetaculusQuestion, BoundedQuestionMixin):
+    question_type: Literal["date"] = "date"
     upper_bound: datetime
     lower_bound: datetime
-    upper_bound_is_hard_limit: bool
-    lower_bound_is_hard_limit: bool
+    open_upper_bound: bool
+    open_lower_bound: bool
     zero_point: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_legacy_bounds(cls, data: dict) -> dict:
+        # Handle upper bound
+        if "upper_bound_is_hard_limit" in data and "open_upper_bound" not in data:
+            data["open_upper_bound"] = not data["upper_bound_is_hard_limit"]
+        # Handle lower bound
+        if "lower_bound_is_hard_limit" in data and "open_lower_bound" not in data:
+            data["open_lower_bound"] = not data["lower_bound_is_hard_limit"]
+        return data
+
+    @property
+    def date_resolution(self) -> DateResolution | None:
+        resolution = typeguard.check_type(self.typed_resolution, DateResolution | None)
+        return resolution
 
     @classmethod
     def from_metaculus_api_json(cls, api_json: dict) -> DateQuestion:
@@ -243,8 +327,9 @@ class DateQuestion(MetaculusQuestion, BoundedQuestionMixin):
         return DateQuestion(
             upper_bound=upper_bound,
             lower_bound=lower_bound,
-            upper_bound_is_hard_limit=not open_upper_bound,
-            lower_bound_is_hard_limit=not open_lower_bound,
+            open_upper_bound=open_upper_bound,
+            open_lower_bound=open_lower_bound,
+            zero_point=zero_point,
             **normal_metaculus_question.model_dump(),
         )
 
@@ -254,11 +339,19 @@ class DateQuestion(MetaculusQuestion, BoundedQuestionMixin):
 
 
 class NumericQuestion(MetaculusQuestion, BoundedQuestionMixin):
+    question_type: Literal["numeric"] = "numeric"
     upper_bound: float
     lower_bound: float
     open_upper_bound: bool
     open_lower_bound: bool
     zero_point: float | None = None
+
+    @property
+    def numeric_resolution(self) -> NumericResolution | None:
+        resolution = typeguard.check_type(
+            self.typed_resolution, NumericResolution | None
+        )
+        return resolution
 
     @classmethod
     def from_metaculus_api_json(cls, api_json: dict) -> NumericQuestion:
@@ -286,15 +379,39 @@ class NumericQuestion(MetaculusQuestion, BoundedQuestionMixin):
     def get_api_type_name(cls) -> str:
         return "numeric"
 
+    def give_question_details_as_markdown(self) -> str:
+        original_details = super().give_question_details_as_markdown()
+        final_details = (
+            original_details
+            + f"\n\nThe upper bound is {self.upper_bound} and the lower bound is {self.lower_bound}"
+            + f"\nOpen upper bound is {self.open_upper_bound} and open lower bound is {self.open_lower_bound}"
+            + f"\nThe zero point is {self.zero_point}"
+        )
+        return final_details.strip()
+
 
 class MultipleChoiceQuestion(MetaculusQuestion):
+    question_type: Literal["multiple_choice"] = "multiple_choice"
     options: list[str]
+    option_is_instance_of: str | None = None
+
+    @property
+    def mc_resolution(self) -> MultipleChoiceResolution | None:
+        resolution = typeguard.check_type(
+            self.typed_resolution, MultipleChoiceResolution | None
+        )
+        if isinstance(resolution, str) and resolution not in self.options:
+            raise ValueError(
+                f"Resolution {resolution} is not in options {self.options}"
+            )
+        return resolution
 
     @classmethod
     def from_metaculus_api_json(cls, api_json: dict) -> MultipleChoiceQuestion:
         normal_metaculus_question = super().from_metaculus_api_json(api_json)
         return MultipleChoiceQuestion(
-            options=api_json["question"]["options"],  # type: ignore
+            options=api_json["question"]["options"],
+            option_is_instance_of=api_json["question"]["group_variable"],
             **normal_metaculus_question.model_dump(),
         )
 

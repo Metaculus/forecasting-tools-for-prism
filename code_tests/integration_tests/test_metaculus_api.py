@@ -97,6 +97,66 @@ class TestGetSpecificQuestions:
         assert question.question_type == "multiple_choice"
         assert_basic_question_attributes_not_none(question, post_id)
 
+    def test_get_group_question_type_from_id(self) -> None:
+        url = "https://www.metaculus.com/questions/38900/"
+        questions: MetaculusQuestion | list[MetaculusQuestion] = (
+            MetaculusApi.get_question_by_url(
+                url, group_question_mode="unpack_subquestions"
+            )
+        )
+        assert isinstance(questions, list)
+        for question in questions:
+            assert isinstance(question, BinaryQuestion)
+            assert question.id_of_post == 38900
+            assert (
+                "Which of the following parties will be part of the next Israeli government formed following the next Knesset election?"
+                in question.question_text
+            )
+            assert question.state == QuestionState.OPEN
+            assert question.resolution_criteria is not None
+            assert (
+                " if the corresponding party or alliance is part of the governing coalition"
+                in question.resolution_criteria
+            )
+            assert question.background_info is not None
+            assert (
+                "Current polling shows that the governing coalition "
+                in question.background_info
+            )
+            assert question.fine_print is not None
+            assert (
+                "an alliance changes member parties, it will be considered the same alliance for the purposes of this question"
+                in question.fine_print
+            )
+            assert question.close_time == datetime(2026, 10, 27, 4)
+            assert isinstance(question.group_question_option, str)
+            assert_basic_question_attributes_not_none(question, question.id_of_post)
+
+        for option in [
+            "United Torah Judaism",
+            "Bennett 2026",
+            "The Democrats",
+            "Hadash–Ta'al",
+        ]:
+            assert option in [question.group_question_option for question in questions]
+
+    def test_group_question_has_right_dates(self) -> None:
+        questions = MetaculusApi.get_question_by_url(
+            "https://www.metaculus.com/c/risk/38787/",
+            group_question_mode="unpack_subquestions",
+        )
+        assert isinstance(questions, list)
+        assert len(questions) == 2
+        high_risk_question = questions[0]
+        critical_risk_question = questions[1]
+
+        assert high_risk_question.scheduled_resolution_time == datetime(2036, 3, 1, 0)
+        assert critical_risk_question.scheduled_resolution_time == datetime(
+            2041, 3, 1, 0
+        )
+        assert high_risk_question.close_time == datetime(2036, 1, 1, 0)
+        assert critical_risk_question.close_time == datetime(2041, 1, 1, 0)
+
     def test_question_weight(self) -> None:
         question = MetaculusApi.get_question_by_post_id(
             38536
@@ -235,6 +295,80 @@ class TestQuestionEndpoint:
         )
         assert all(question.state == QuestionState.OPEN for question in questions)
 
+    async def test_group_question_field_in_filter(self) -> None:
+        target_tournament = "quarterly-cup-2023q4"
+
+        unpack_groups_filter = ApiFilter(
+            group_question_mode="unpack_subquestions",
+            allowed_tournaments=[target_tournament],
+        )
+        questions_with_unpacking = await MetaculusApi.get_questions_matching_filter(
+            unpack_groups_filter,
+        )
+
+        unpack_group_numeric_filter = ApiFilter(
+            group_question_mode="unpack_subquestions",
+            allowed_tournaments=[target_tournament],
+            allowed_types=["numeric"],
+        )
+        questions_with_unpacking_numeric = (
+            await MetaculusApi.get_questions_matching_filter(
+                unpack_group_numeric_filter,
+            )
+        )
+
+        exclude_groups_filter = ApiFilter(
+            group_question_mode="exclude",
+            allowed_tournaments=[target_tournament],
+        )
+        questions_without_unpacking = await MetaculusApi.get_questions_matching_filter(
+            exclude_groups_filter,
+        )
+
+        assert len(questions_without_unpacking) == 41
+        assert len(questions_with_unpacking) == 47
+        assert (
+            len(questions_with_unpacking_numeric) == 5 + 2
+        )  # 5 numeric questions in the tournament, 2 more with unpacking
+
+        # https://www.metaculus.com/questions/19643/
+        assert any(
+            "October 7 Hamas attack" in q.question_text
+            for q in questions_with_unpacking
+        )
+        assert any(
+            "October 7 Hamas attack" in q.question_text
+            for q in questions_with_unpacking_numeric
+        )
+        assert not any(
+            "October 7 Hamas attack" in q.question_text
+            for q in questions_without_unpacking
+        )
+
+        # https://www.metaculus.com/questions/25069/
+        assert any(
+            "Will OpenAI publicly commit" in q.question_text
+            for q in questions_with_unpacking
+        )
+        assert not any(
+            "Will OpenAI publicly commit" in q.question_text
+            for q in questions_with_unpacking_numeric
+        )
+        assert not any(
+            "Will OpenAI publicly commit" in q.question_text
+            for q in questions_without_unpacking
+        )
+
+        for question in questions_with_unpacking:
+            assert question.id_of_post is not None
+            assert_basic_question_attributes_not_none(question, question.id_of_post)
+        for question in questions_with_unpacking_numeric:
+            assert question.id_of_post is not None
+            assert_basic_question_attributes_not_none(question, question.id_of_post)
+        for question in questions_without_unpacking:
+            assert question.id_of_post is not None
+            assert_basic_question_attributes_not_none(question, question.id_of_post)
+
     def test_get_questions_from_tournament(self) -> None:
         if ForecastingTestManager.metaculus_cup_is_not_active():
             pytest.skip("Quarterly cup is not active")
@@ -319,6 +453,9 @@ class TestQuestionEndpoint:
         ), "Questions should not be the same (randomly sampled)"
 
 
+@pytest.mark.skip(
+    reason="Reducing the number of calls to metaculus api due to rate limiting"
+)
 class TestApiFilter:
     @pytest.mark.parametrize(
         "api_filter, num_questions, randomly_sample",
@@ -334,6 +471,7 @@ class TestApiFilter:
                 ApiFilter(
                     allowed_types=["binary"],
                     allowed_statuses=["closed", "resolved"],
+                    group_question_mode="unpack_subquestions",
                     scheduled_resolve_time_lt=datetime(2024, 1, 20),
                     open_time_gt=datetime(2022, 12, 22),
                 ),
@@ -363,6 +501,7 @@ class TestApiFilter:
                     allowed_statuses=["resolved"],
                     publish_time_gt=datetime(2023, 12, 22),
                     close_time_lt=datetime(2025, 12, 22),
+                    group_question_mode="unpack_subquestions",
                 ),
                 120,
                 True,
@@ -370,6 +509,7 @@ class TestApiFilter:
             (
                 ApiFilter(
                     allowed_statuses=["resolved"],
+                    group_question_mode="exclude",
                     cp_reveal_time_gt=datetime(2023, 1, 1),
                     cp_reveal_time_lt=datetime(2024, 1, 1),
                 ),
@@ -393,6 +533,9 @@ class TestApiFilter:
             assert len(questions) > 0
         assert_basic_attributes_at_percentage(questions, 0.8)
 
+    @pytest.mark.skip(
+        reason="Reducing the number of calls to metaculus api due to rate limiting"
+    )
     async def test_error_when_not_enough_questions_matching_filter(self) -> None:
         single_question_filter = ApiFilter(
             close_time_gt=datetime(2024, 1, 15),
@@ -442,6 +585,9 @@ class TestApiFilter:
         for expected_state in status_filter:
             assert any(question.state == expected_state for question in questions)
 
+    @pytest.mark.skip(
+        reason="Reducing the number of calls to metaculus api due to rate limiting"
+    )
     @pytest.mark.parametrize(
         "api_filter, num_questions_in_tournament, randomly_sample",
         [
@@ -449,11 +595,6 @@ class TestApiFilter:
                 ApiFilter(allowed_tournaments=["quarterly-cup-2024q1"]),
                 46,
                 False,
-            ),
-            (
-                ApiFilter(allowed_tournaments=["quarterly-cup-2024q1"]),
-                46,
-                True,
             ),
             (
                 ApiFilter(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import math
@@ -9,7 +10,7 @@ import random
 import re
 import time
 from datetime import datetime, timedelta
-from typing import Any, Literal, TypeVar
+from typing import Any, Literal, TypeVar, overload
 
 import requests
 import typeguard
@@ -21,12 +22,21 @@ from forecasting_tools.data_models.questions import (
     MetaculusQuestion,
     MultipleChoiceQuestion,
     NumericQuestion,
+    QuestionBasicType,
 )
 from forecasting_tools.util.misc import raise_for_status_with_additional_info
 
 logger = logging.getLogger(__name__)
 
 Q = TypeVar("Q", bound=MetaculusQuestion)
+GroupQuestionMode = Literal["exclude", "unpack_subquestions"]
+"""
+If group_question_mode is "exclude", then group questions will be removed from the list of questions.
+If group_question_mode is "unpack_subquestions", then each subquestion in the group question will be added as a separate question.
+"""
+QuestionFullType = Literal[
+    "binary", "numeric", "multiple_choice", "date", "group_of_questions", "conditional"
+]
 
 
 class MetaculusApi:
@@ -124,19 +134,69 @@ class MetaculusApi:
         }
         cls._post_question_prediction(question_id, payload)
 
+    @overload
     @classmethod
-    def get_question_by_url(cls, question_url: str) -> MetaculusQuestion:
-        """
-        URL looks like https://www.metaculus.com/questions/28841/will-eric-adams-be-the-nyc-mayor-on-january-1-2025/
-        """
-        match = re.search(r"/questions/(\d+)", question_url)
-        if not match:
-            raise ValueError(f"Could not find question ID in URL: {question_url}")
-        question_id = int(match.group(1))
-        return cls.get_question_by_post_id(question_id)
+    def get_question_by_url(
+        cls,
+        question_url: str,
+        group_question_mode: Literal["exclude"] = "exclude",
+    ) -> MetaculusQuestion: ...
+
+    @overload
+    @classmethod
+    def get_question_by_url(
+        cls,
+        question_url: str,
+        group_question_mode: GroupQuestionMode = "exclude",
+    ) -> MetaculusQuestion | list[MetaculusQuestion]: ...
 
     @classmethod
-    def get_question_by_post_id(cls, post_id: int) -> MetaculusQuestion:
+    def get_question_by_url(
+        cls,
+        question_url: str,
+        group_question_mode: GroupQuestionMode = "exclude",
+    ) -> MetaculusQuestion | list[MetaculusQuestion]:
+        """
+        Handles both question and community URLs:
+        - Question: https://www.metaculus.com/questions/28841/...
+        - Community: https://www.metaculus.com/c/risk/38787/
+        """
+        question_match = re.search(r"/questions/(\d+)", question_url)
+        if question_match:
+            post_id = int(question_match.group(1))
+            return cls.get_question_by_post_id(post_id, group_question_mode)
+
+        community_match = re.search(r"/c/[^/]+/(\d+)", question_url)
+        if community_match:
+            post_id = int(community_match.group(1))
+            return cls.get_question_by_post_id(post_id, group_question_mode)
+
+        raise ValueError(
+            f"Could not find question or collection ID in URL: {question_url}"
+        )
+
+    @overload
+    @classmethod
+    def get_question_by_post_id(
+        cls,
+        post_id: int,
+        group_question_mode: Literal["exclude"] = "exclude",
+    ) -> MetaculusQuestion: ...
+
+    @overload
+    @classmethod
+    def get_question_by_post_id(
+        cls,
+        post_id: int,
+        group_question_mode: GroupQuestionMode = "exclude",
+    ) -> MetaculusQuestion | list[MetaculusQuestion]: ...
+
+    @classmethod
+    def get_question_by_post_id(
+        cls,
+        post_id: int,
+        group_question_mode: GroupQuestionMode = "exclude",
+    ) -> MetaculusQuestion | list[MetaculusQuestion]:
         logger.info(f"Retrieving question details for question {post_id}")
         url = f"{cls.API_BASE_URL}/posts/{post_id}/"
         response = requests.get(
@@ -145,9 +205,20 @@ class MetaculusApi:
         )
         raise_for_status_with_additional_info(response)
         json_question = json.loads(response.content)
-        metaculus_question = MetaculusApi._metaculus_api_json_to_question(json_question)
+        metaculus_questions = (
+            MetaculusApi._post_json_to_questions_while_handling_groups(
+                json_question, group_question_mode
+            )
+        )
         logger.info(f"Retrieved question details for question {post_id}")
-        return metaculus_question
+        if len(metaculus_questions) == 1:
+            return metaculus_questions[0]
+        else:
+            if group_question_mode == "exclude":
+                raise ValueError(
+                    f"Expected 1 question but got {len(metaculus_questions)}. You probably accessed a group question. Group question mode is set to {group_question_mode}."
+                )
+            return metaculus_questions
 
     @classmethod
     async def get_questions_matching_filter(
@@ -184,7 +255,7 @@ class MetaculusApi:
             raise ValueError(
                 f"Requested number of questions ({num_questions}) does not match number of questions found ({len(questions)})"
             )
-        if len(set(q.id_of_post for q in questions)) != len(questions):
+        if len(set(q.id_of_question for q in questions)) != len(questions):
             raise ValueError("Not all questions found are unique")
         logger.info(
             f"Returning {len(questions)} questions matching the Metaculus API filter"
@@ -195,11 +266,13 @@ class MetaculusApi:
     def get_all_open_questions_from_tournament(
         cls,
         tournament_id: int | str,
+        group_question_mode: GroupQuestionMode = "unpack_subquestions",
     ) -> list[MetaculusQuestion]:
         logger.info(f"Retrieving questions from tournament {tournament_id}")
         api_filter = ApiFilter(
             allowed_tournaments=[tournament_id],
             allowed_statuses=["open"],
+            group_question_mode=group_question_mode,
         )
         questions = asyncio.run(cls.get_questions_matching_filter(api_filter))
         logger.info(
@@ -215,6 +288,7 @@ class MetaculusApi:
         max_days_since_opening: int | None = 365,
         num_forecasters_gte: int = 30,
         error_if_question_target_missed: bool = True,
+        group_question_mode: GroupQuestionMode = "exclude",
     ) -> list[BinaryQuestion]:
         logger.info(f"Retrieving {num_of_questions_to_return} benchmark questions")
         date_into_future = (
@@ -235,6 +309,7 @@ class MetaculusApi:
             includes_bots_in_aggregates=False,
             community_prediction_exists=True,
             open_time_gt=date_into_past,
+            group_question_mode=group_question_mode,
         )
         questions = asyncio.run(
             cls.get_questions_matching_filter(
@@ -278,7 +353,9 @@ class MetaculusApi:
         raise_for_status_with_additional_info(response)
 
     @classmethod
-    def _get_questions_from_api(cls, params: dict[str, Any]) -> list[MetaculusQuestion]:
+    def _get_questions_from_api(
+        cls, params: dict[str, Any], group_question_mode: GroupQuestionMode
+    ) -> list[MetaculusQuestion]:
         random_sleep_time = random.uniform(2, 3)
         logger.debug(
             f"Sleeping for {random_sleep_time:.1f} seconds before next request"
@@ -295,23 +372,23 @@ class MetaculusApi:
         data = json.loads(response.content)
         results = data["results"]
         supported_posts = [
-            q
-            for q in results
-            if "notebook" not in q
-            and "group_of_questions" not in q
-            and "conditional" not in q
+            q for q in results if "notebook" not in q and "conditional" not in q
         ]
         removed_posts = [post for post in results if post not in supported_posts]
         if len(removed_posts) > 0:
             logger.warning(
                 f"Removed {len(removed_posts)} posts that "
-                "are not supported (e.g. notebook or group question)"
+                "are not supported (e.g. notebook or conditional question)"
             )
 
-        questions = []
+        questions: list[MetaculusQuestion] = []
         for q in supported_posts:
             try:
-                questions.append(cls._metaculus_api_json_to_question(q))
+                questions.extend(
+                    cls._post_json_to_questions_while_handling_groups(
+                        q, group_question_mode
+                    )
+                )
             except Exception as e:
                 logger.warning(
                     f"Error processing post ID {q['id']}: {e.__class__.__name__} {e}"
@@ -320,9 +397,49 @@ class MetaculusApi:
         return questions
 
     @classmethod
-    def _metaculus_api_json_to_question(cls, api_json: dict) -> MetaculusQuestion:
-        assert "question" in api_json, f"Question not found in API JSON: {api_json}"
-        question_type_string = api_json["question"]["type"]  # type: ignore
+    def _post_json_to_questions_while_handling_groups(
+        cls, post_json_from_api: dict, group_question_mode: GroupQuestionMode
+    ) -> list[MetaculusQuestion]:
+        if "group_of_questions" in post_json_from_api:
+            if group_question_mode == "exclude":
+                logger.debug(
+                    f"Excluding group question post {post_json_from_api['id']}"
+                )
+                return []
+            elif group_question_mode == "unpack_subquestions":
+                logger.debug(
+                    f"Unpacking subquestions for group question post {post_json_from_api['id']}"
+                )
+                questions = cls._unpack_group_question(post_json_from_api)
+                return questions
+        else:
+            return [cls._non_group_post_json_to_question(post_json_from_api)]
+
+    @classmethod
+    def _unpack_group_question(
+        cls, post_json_from_api: dict
+    ) -> list[MetaculusQuestion]:
+        group_json: dict = post_json_from_api["group_of_questions"]
+        questions: list[MetaculusQuestion] = []
+        question_jsons: list[dict] = group_json["questions"]
+        for question_json in question_jsons:
+            # Reformat the json to make it look like a normal post
+            new_question_json = copy.deepcopy(question_json)
+            new_question_json["fine_print"] = group_json["fine_print"]
+            new_question_json["description"] = group_json["description"]
+            new_question_json["resolution_criteria"] = group_json["resolution_criteria"]
+
+            new_post_json = copy.deepcopy(post_json_from_api)
+            new_post_json["question"] = new_question_json
+
+            question_obj = cls._non_group_post_json_to_question(new_post_json)
+            questions.append(question_obj)
+        return questions
+
+    @classmethod
+    def _non_group_post_json_to_question(cls, post_json: dict) -> MetaculusQuestion:
+        assert "question" in post_json, "Question key not found in API JSON"
+        question_type_string = post_json["question"]["type"]  # type: ignore
         if question_type_string == BinaryQuestion.get_api_type_name():
             question_type = BinaryQuestion
         elif question_type_string == NumericQuestion.get_api_type_name():
@@ -333,7 +450,7 @@ class MetaculusApi:
             question_type = DateQuestion
         else:
             raise ValueError(f"Unknown question type: {question_type_string}")
-        question = question_type.from_metaculus_api_json(api_json)
+        question = question_type.from_metaculus_api_json(post_json)
         return question
 
     @classmethod
@@ -379,7 +496,7 @@ class MetaculusApi:
             raise ValueError(
                 f"Exhausted all {total_pages} pages but only found {len(questions)} questions, needed {num_questions}. Set error_if_not_enough_questions to False to return as many as possible"
             )
-        assert len(set(q.id_of_post for q in questions)) == len(
+        assert len(set(q.id_of_question for q in questions)) == len(
             questions
         ), "Not all questions found are unique"
 
@@ -467,7 +584,10 @@ class MetaculusApi:
         }
 
         if api_filter.allowed_types:
-            url_params["forecast_type"] = api_filter.allowed_types
+            type_filter: list[QuestionFullType] = api_filter.allowed_types  # type: ignore
+            if api_filter.group_question_mode == "unpack_subquestions":
+                type_filter.append("group_of_questions")
+            url_params["forecast_type"] = type_filter
 
         if api_filter.allowed_statuses:
             url_params["statuses"] = api_filter.allowed_statuses
@@ -498,8 +618,15 @@ class MetaculusApi:
         if api_filter.allowed_tournaments:
             url_params["tournaments"] = api_filter.allowed_tournaments
 
-        questions = cls._get_questions_from_api(url_params)
+        questions = cls._get_questions_from_api(
+            url_params, api_filter.group_question_mode
+        )
         questions_were_found_before_local_filter = len(questions) > 0
+
+        if api_filter.allowed_types:
+            questions = cls._filter_questions_by_type(
+                questions, api_filter.allowed_types
+            )
 
         if api_filter.num_forecasters_gte is not None:
             questions = cls._filter_questions_by_forecasters(
@@ -535,6 +662,16 @@ class MetaculusApi:
             )
 
         return questions, questions_were_found_before_local_filter
+
+    @classmethod
+    def _filter_questions_by_type(
+        cls, questions: list[Q], allowed_types: list[QuestionBasicType]
+    ) -> list[Q]:
+        return [
+            question
+            for question in questions
+            if question.get_api_type_name() in allowed_types
+        ]
 
     @classmethod
     def _filter_questions_by_forecasters(
@@ -605,12 +742,13 @@ class MetaculusApi:
 
 class ApiFilter(BaseModel):
     num_forecasters_gte: int | None = None
-    allowed_types: list[Literal["binary", "numeric", "multiple_choice", "date"]] = [
+    allowed_types: list[QuestionBasicType] = [
         "binary",
         "numeric",
         "multiple_choice",
         "date",
     ]
+    group_question_mode: GroupQuestionMode = "exclude"
     allowed_statuses: list[Literal["open", "upcoming", "resolved", "closed"]] | None = (
         None
     )

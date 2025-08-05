@@ -10,6 +10,7 @@ from forecasting_tools.data_models.questions import (
     BinaryQuestion,
     CanceledResolution,
     DateQuestion,
+    DiscreteQuestion,
     MetaculusQuestion,
     MultipleChoiceQuestion,
     NumericQuestion,
@@ -31,10 +32,11 @@ logger = logging.getLogger(__name__)
 class TestGetSpecificQuestions:
     def test_get_binary_question_type_from_id(self) -> None:
         # Test question w/ <1% probability: https://www.metaculus.com/questions/578/human-extinction-by-2100/
-        post_id = DataOrganizer.get_example_post_id_for_question_type(BinaryQuestion)
-        question = MetaculusApi.get_question_by_post_id(post_id)
+        question = MetaculusApi.get_question_by_url(
+            "https://www.metaculus.com/questions/578/human-extinction-by-2100/"
+        )
         assert isinstance(question, BinaryQuestion)
-        assert post_id == question.id_of_post
+        assert question.id_of_post == 578
         assert question.community_prediction_at_access_time is not None
         assert question.community_prediction_at_access_time <= 0.03
         assert question.state == QuestionState.OPEN
@@ -43,38 +45,58 @@ class TestGetSpecificQuestions:
         assert question.typed_resolution is None
         assert question.get_question_type() == "binary"
         assert question.question_type == "binary"
-        assert_basic_question_attributes_not_none(question, post_id)
+        assert_basic_question_attributes_not_none(question, question.id_of_post)
 
     def test_get_numeric_question_type_from_id(self) -> None:
-        question_id = DataOrganizer.get_example_post_id_for_question_type(
-            NumericQuestion
+        question = MetaculusApi.get_question_by_url(
+            "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/"
         )
-        question = MetaculusApi.get_question_by_post_id(question_id)
         assert isinstance(question, NumericQuestion)
-        assert question_id == question.id_of_post
-        assert question.lower_bound == 0
-        assert question.upper_bound == 200
+        assert question.id_of_post == 14333
         assert not question.open_lower_bound
         assert question.open_upper_bound
+        assert question.cdf_size == 201
         assert question.unit_of_measure == "years old"
         assert question.question_weight == 1.0
         assert question.get_question_type() == "numeric"
         assert question.question_type == "numeric"
-        assert_basic_question_attributes_not_none(question, question_id)
+        assert_basic_question_attributes_not_none(question, question.id_of_post)
+        assert question.lower_bound == 0
+        assert question.upper_bound == 200
+        assert question.nominal_lower_bound == 0
+        assert question.nominal_upper_bound == 200
 
-    @pytest.mark.skip(reason="Date questions are not fully supported yet")
+    def test_get_discrete_question_from_id(self) -> None:
+        question = MetaculusApi.get_question_by_url(
+            "https://www.metaculus.com/c/diffusion-community/38880/how-many-us-labor-strikes-due-to-ai-in-2029/"
+        )
+        assert isinstance(question, DiscreteQuestion)
+        assert question.id_of_post == 38880
+        assert question.cdf_size == 9
+        assert question.unit_of_measure == "strikes"
+        assert not question.open_lower_bound
+        assert question.open_upper_bound
+        assert question.get_question_type() == "discrete"
+        assert question.get_api_type_name() == "discrete"
+        assert_basic_question_attributes_not_none(question, question.id_of_post)
+        assert question.lower_bound == -0.5
+        assert question.upper_bound == 7.5
+        assert question.nominal_lower_bound == 0
+        assert question.nominal_upper_bound == 7
+
     def test_get_date_question_type_from_id(self) -> None:
         question_id = DataOrganizer.get_example_post_id_for_question_type(DateQuestion)
         question = MetaculusApi.get_question_by_post_id(question_id)
         assert isinstance(question, DateQuestion)
         assert question_id == question.id_of_post
-        assert question.lower_bound == datetime(2020, 8, 25)
-        assert question.upper_bound == datetime(2199, 12, 25)
-        assert question.open_lower_bound
-        assert not question.open_upper_bound
+        assert question.lower_bound == datetime(1902, 12, 31)
+        assert question.upper_bound == datetime(2084, 12, 31)
+        assert not question.open_lower_bound
+        assert question.open_upper_bound
         assert question.question_weight == 1.0
         assert question.get_question_type() == "date"
         assert question.question_type == "date"
+        assert question.state == QuestionState.OPEN
         assert_basic_question_attributes_not_none(question, question_id)
 
     def test_get_multiple_choice_question_type_from_id(self) -> None:
@@ -152,8 +174,12 @@ class TestGetSpecificQuestions:
         )
         assert isinstance(questions, list)
         assert len(questions) == 2
-        high_risk_question = questions[0]
-        critical_risk_question = questions[1]
+        high_risk_question = [
+            question for question in questions if "High" in question.question_text
+        ][0]
+        critical_risk_question = [
+            question for question in questions if "Critical" in question.question_text
+        ][0]
 
         assert high_risk_question.scheduled_resolution_time == datetime(2036, 3, 1, 0)
         assert critical_risk_question.scheduled_resolution_time == datetime(
@@ -278,7 +304,7 @@ class TestPosting:
             MetaculusApi.post_binary_question_prediction(question_id, 1.1)
 
 
-class TestQuestionEndpoint:
+class TestPostEndpoint:
     def test_questions_returned_from_list_questions(self) -> None:
         if ForecastingTestManager.metaculus_cup_is_not_active():
             pytest.skip("Quarterly cup is not active")
@@ -381,16 +407,9 @@ class TestQuestionEndpoint:
         questions = MetaculusApi.get_all_open_questions_from_tournament(
             ForecastingTestManager.TOURN_WITH_OPENNESS_AND_TYPE_VARIATIONS
         )
-        score = 0
-        if any(isinstance(question, BinaryQuestion) for question in questions):
-            score += 1
-        if any(isinstance(question, NumericQuestion) for question in questions):
-            score += 1
-        if any(isinstance(question, DateQuestion) for question in questions):
-            score += 1
-        if any(isinstance(question, MultipleChoiceQuestion) for question in questions):
-            score += 1
-        assert score > 1, "There needs to be multiple question types in the tournament"
+        for question_type in DataOrganizer.get_all_question_types():
+            assert any(isinstance(question, question_type) for question in questions)
+        assert len(questions) == 19
 
         for question in questions:
             assert question.state == QuestionState.OPEN

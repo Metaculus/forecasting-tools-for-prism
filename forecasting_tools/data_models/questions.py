@@ -40,7 +40,7 @@ ResolutionType = (
     BinaryResolution | NumericResolution | DateResolution | MultipleChoiceResolution
 )
 
-QuestionBasicType = Literal["binary", "numeric", "multiple_choice", "date"]
+QuestionBasicType = Literal["binary", "numeric", "multiple_choice", "date", "discrete"]
 
 
 class MetaculusQuestion(BaseModel, Jsonable):
@@ -88,6 +88,9 @@ class MetaculusQuestion(BaseModel, Jsonable):
         ),
         default_factory=dict,
     )
+    custom_metadata: dict = Field(
+        default_factory=dict
+    )  # Additional metadata not tracked above or through the Metaculus API
 
     @classmethod
     def from_metaculus_api_json(cls, post_api_json: dict) -> MetaculusQuestion:
@@ -228,13 +231,15 @@ class MetaculusQuestion(BaseModel, Jsonable):
 
     def get_question_type(
         self,
-    ) -> Literal["binary", "date", "numeric", "multiple_choice"]:
+    ) -> QuestionBasicType:
         try:
-            return self.question_type  # type: ignore
+            question_type = self.question_type  # type: ignore
         except Exception as e:
             raise AttributeError(
                 f"Question type not found for {self.__class__.__name__}. Error: {e}"
             ) from e
+        assert question_type == self.get_api_type_name()
+        return question_type
 
 
 class BinaryQuestion(MetaculusQuestion):
@@ -273,8 +278,8 @@ class BoundedQuestionMixin:
         cls, api_json: dict
     ) -> tuple[bool, bool, float, float, float | None]:
         try:
-            open_upper_bound = api_json["question"]["open_upper_bound"]  # type: ignore
-            open_lower_bound = api_json["question"]["open_lower_bound"]  # type: ignore
+            open_upper_bound = api_json["question"]["open_upper_bound"]
+            open_lower_bound = api_json["question"]["open_lower_bound"]
         except KeyError:
             logger.warning(
                 "Open bounds not found in API JSON defaulting to 'open bounds'"
@@ -282,9 +287,9 @@ class BoundedQuestionMixin:
             open_lower_bound = True
             open_upper_bound = True
 
-        upper_bound = api_json["question"]["scaling"]["range_max"]  # type: ignore
-        lower_bound = api_json["question"]["scaling"]["range_min"]  # type: ignore
-        zero_point = api_json["question"]["scaling"]["zero_point"]  # type: ignore
+        upper_bound = api_json["question"]["scaling"]["range_max"]
+        lower_bound = api_json["question"]["scaling"]["range_min"]
+        zero_point = api_json["question"]["scaling"]["zero_point"]
 
         assert isinstance(upper_bound, float), f"Upper bound is {upper_bound}"
         assert isinstance(lower_bound, float), f"Lower bound is {lower_bound}"
@@ -295,6 +300,30 @@ class BoundedQuestionMixin:
             lower_bound,
             zero_point,
         )
+
+    @classmethod
+    def _get_cdf_size_from_json(cls, api_json: dict) -> int:
+        try:
+            outcome_count = api_json["question"]["scaling"]["inbound_outcome_count"]
+            if outcome_count is None:
+                outcome_count = 200
+            cdf_size = outcome_count + 1  # Add 1 to account for this being a cdf
+        except KeyError:
+            logger.warning("CDF not found in API JSON using defaults")
+            return 201
+        return cdf_size
+
+    @classmethod
+    def _get_nominal_bounds_from_json(
+        cls, api_json: dict
+    ) -> tuple[float | None, float | None]:
+        try:
+            nominal_lower_bound = api_json["question"]["scaling"]["nominal_min"]
+            nominal_upper_bound = api_json["question"]["scaling"]["nominal_max"]
+        except KeyError:
+            nominal_lower_bound = None
+            nominal_upper_bound = None
+        return nominal_lower_bound, nominal_upper_bound
 
 
 class DateQuestion(MetaculusQuestion, BoundedQuestionMixin):
@@ -358,6 +387,11 @@ class NumericQuestion(MetaculusQuestion, BoundedQuestionMixin):
     open_upper_bound: bool
     open_lower_bound: bool
     zero_point: float | None = None
+    cdf_size: int = (
+        201  # Normal numeric questions have 201 points, but discrete questions have fewer
+    )
+    nominal_upper_bound: float | None = None
+    nominal_lower_bound: float | None = None
 
     @property
     def numeric_resolution(self) -> NumericResolution | None:
@@ -379,12 +413,19 @@ class NumericQuestion(MetaculusQuestion, BoundedQuestionMixin):
         assert isinstance(upper_bound, float)
         assert isinstance(lower_bound, float)
 
+        nominal_lower_bound, nominal_upper_bound = cls._get_nominal_bounds_from_json(
+            api_json
+        )
+
         return NumericQuestion(
             upper_bound=upper_bound,
             lower_bound=lower_bound,
             open_upper_bound=open_upper_bound,
             open_lower_bound=open_lower_bound,
             zero_point=zero_point,
+            cdf_size=cls._get_cdf_size_from_json(api_json),
+            nominal_upper_bound=nominal_upper_bound,
+            nominal_lower_bound=nominal_lower_bound,
             **normal_metaculus_question.model_dump(),
         )
 
@@ -401,6 +442,23 @@ class NumericQuestion(MetaculusQuestion, BoundedQuestionMixin):
             + f"\nThe zero point is {self.zero_point}"
         )
         return final_details.strip()
+
+
+class DiscreteQuestion(NumericQuestion):
+    question_type: Literal["discrete"] = "discrete"
+
+    @classmethod
+    def from_metaculus_api_json(cls, api_json: dict) -> DiscreteQuestion:
+        normal_metaculus_question = super().from_metaculus_api_json(api_json)
+        normal_metaculus_question.question_type = "discrete"  # type: ignore
+        question = DiscreteQuestion(
+            **normal_metaculus_question.model_dump(),
+        )
+        return question
+
+    @classmethod
+    def get_api_type_name(cls) -> QuestionBasicType:
+        return "discrete"
 
 
 class MultipleChoiceQuestion(MetaculusQuestion):

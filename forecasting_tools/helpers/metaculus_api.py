@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from forecasting_tools.data_models.questions import (
     BinaryQuestion,
     DateQuestion,
+    DiscreteQuestion,
     MetaculusQuestion,
     MultipleChoiceQuestion,
     NumericQuestion,
@@ -49,6 +50,7 @@ class ApiFilter(BaseModel):
         "numeric",
         "multiple_choice",
         "date",
+        "discrete",
     ]
     group_question_mode: GroupQuestionMode = "exclude"
     allowed_statuses: list[QuestionStateAsString] | None = None
@@ -72,7 +74,7 @@ class MetaculusApi:
     Documentation for the API can be found at https://www.metaculus.com/api/
     """
 
-    # NOTE: The tourament slug can be used for ID as well (e.g. "aibq2" or "quarterly-cup")
+    # NOTE: The tourament slug can be used for ID as well (e.g. "aibq2" or "quarterly-cup" instead of 32721 or 32630)
     AI_WARMUP_TOURNAMENT_ID = (
         3294  # https://www.metaculus.com/tournament/ai-benchmarking-warmup/
     )
@@ -80,6 +82,7 @@ class MetaculusApi:
     AI_COMPETITION_ID_Q4 = 32506  # https://www.metaculus.com/tournament/aibq4/
     AI_COMPETITION_ID_Q1 = 32627  # https://www.metaculus.com/tournament/aibq1/
     AI_COMPETITION_ID_Q2 = 32721  # https://www.metaculus.com/tournament/aibq2/
+    AIB_FALL_2025_ID = 32813  # https://www.metaculus.com/tournament/fall-aib-2025/
     PRO_COMPARISON_TOURNAMENT_Q1 = 32631
     PRO_COMPARISON_TOURNAMENT_Q2 = (
         32761  # https://www.metaculus.com/tournament/pro-benchmark-q22025
@@ -88,10 +91,14 @@ class MetaculusApi:
     Q3_2024_QUARTERLY_CUP = 3366
     Q4_2024_QUARTERLY_CUP = 3672
     Q1_2025_QUARTERLY_CUP = 32630
-    CURRENT_QUARTERLY_CUP_ID = "metaculus-cup"  # Consider this parameter deprecated since quarterly cup is no longer active
     METACULUS_CUP_2025_1_ID = 32726
+    AI_2027_TOURNAMENT_ID = "ai-2027"
+
+    CURRENT_QUARTERLY_CUP_ID = "metaculus-cup"  # Consider this parameter deprecated since quarterly cup is no longer active
     CURRENT_METACULUS_CUP_ID = "metaculus-cup"
-    CURRENT_AI_COMPETITION_ID = AI_COMPETITION_ID_Q2
+    CURRENT_AI_COMPETITION_ID = AIB_FALL_2025_ID
+    CURRENT_MINIBENCH_ID = "minibench"
+
     TEST_QUESTION_URLS = [
         "https://www.metaculus.com/questions/578/human-extinction-by-2100/",  # Human Extinction - Binary
         "https://www.metaculus.com/questions/14333/age-of-oldest-human-as-of-2100/",  # Age of Oldest Human - Numeric
@@ -102,14 +109,20 @@ class MetaculusApi:
     MAX_QUESTIONS_FROM_QUESTION_API_PER_REQUEST = 100
 
     @classmethod
-    def post_question_comment(cls, post_id: int, comment_text: str) -> None:
+    def post_question_comment(
+        cls,
+        post_id: int,
+        comment_text: str,
+        is_private: bool = True,
+        included_forecast: bool = True,
+    ) -> None:
         response = requests.post(
             f"{cls.API_BASE_URL}/comments/create/",
             json={
                 "on_post": post_id,
                 "text": comment_text,
-                "is_private": True,
-                "included_forecast": True,
+                "is_private": is_private,
+                "included_forecast": included_forecast,
             },
             **cls._get_auth_headers(),  # type: ignore
         )
@@ -138,8 +151,6 @@ class MetaculusApi:
         In this case we use the cdf.
         """
         logger.info(f"Posting prediction on question {question_id}")
-        if len(cdf_values) != 201:
-            raise ValueError("CDF must contain exactly 201 values")
         if not all(0 <= x <= 1 for x in cdf_values):
             raise ValueError("All CDF values must be between 0 and 1")
         if not all(a <= b for a, b in zip(cdf_values, cdf_values[1:])):
@@ -470,6 +481,8 @@ class MetaculusApi:
         question_type_string = post_json["question"]["type"]  # type: ignore
         if question_type_string == BinaryQuestion.get_api_type_name():
             question_type = BinaryQuestion
+        elif question_type_string == DiscreteQuestion.get_api_type_name():
+            question_type = DiscreteQuestion
         elif question_type_string == NumericQuestion.get_api_type_name():
             question_type = NumericQuestion
         elif question_type_string == MultipleChoiceQuestion.get_api_type_name():

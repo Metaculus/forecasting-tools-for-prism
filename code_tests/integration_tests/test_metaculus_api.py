@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 # Test resolutions for:
 # - Ambiguous
 # - Out of bounds via float and out of bounds via "above_upper_bound" and "below_lower_bound" (for both numeric and date questions)
+# Create test for different order_by parameters (and in the 'assert_matches_filter' function)
 
 
 class TestGetSpecificQuestions:
@@ -46,6 +47,7 @@ class TestGetSpecificQuestions:
         assert question.typed_resolution is None
         assert question.get_question_type() == "binary"
         assert question.question_type == "binary"
+        assert question.question_ids_of_group is None
         assert_basic_question_attributes_not_none(question, question.id_of_post)
 
     def test_get_numeric_question_type_from_id(self) -> None:
@@ -194,6 +196,7 @@ class TestGetSpecificQuestions:
         assert critical_risk_question.close_time == datetime(
             2041, 1, 1, 0, tzinfo=timezone.utc
         )
+        assert set(high_risk_question.question_ids_of_group) == {38105, 38106}
 
     def test_question_weight(self) -> None:
         question = MetaculusApi.get_question_by_post_id(
@@ -759,6 +762,10 @@ def assert_basic_question_attributes_not_none(
     assert (
         question.get_question_type() is not None
     ), f"Question type is None for post ID {post_id}"
+    if question.question_ids_of_group is not None:
+        assert isinstance(question.question_ids_of_group, list)
+        assert all(isinstance(q_id, int) for q_id in question.question_ids_of_group)
+        assert question.group_question_option is not None
 
 
 def assert_questions_match_filter(  # NOSONAR

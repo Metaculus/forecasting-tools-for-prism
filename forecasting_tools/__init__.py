@@ -18,6 +18,12 @@ from forecasting_tools.agents_and_tools.deprecated.question_generator import (
 from forecasting_tools.agents_and_tools.other.data_analyzer import (
     DataAnalyzer as DataAnalyzer,
 )
+from forecasting_tools.agents_and_tools.question_generators.question_decomposer import (
+    QuestionDecomposer as QuestionDecomposer,
+)
+from forecasting_tools.agents_and_tools.question_generators.question_operationalizer import (
+    QuestionOperationalizer as QuestionOperationalizer,
+)
 from forecasting_tools.agents_and_tools.question_generators.topic_generator import (
     TopicGenerator as TopicGenerator,
 )
@@ -95,6 +101,8 @@ from forecasting_tools.data_models.numeric_report import (
 from forecasting_tools.data_models.numeric_report import NumericReport as NumericReport
 from forecasting_tools.data_models.numeric_report import Percentile as Percentile
 from forecasting_tools.data_models.questions import BinaryQuestion as BinaryQuestion
+from forecasting_tools.data_models.questions import DateQuestion as DateQuestion
+from forecasting_tools.data_models.questions import DiscreteQuestion as DiscreteQuestion
 from forecasting_tools.data_models.questions import (
     MetaculusQuestion as MetaculusQuestion,
 )

@@ -12,9 +12,10 @@ import time
 from datetime import datetime, timedelta
 from typing import Any, Callable, Literal, TypeVar, overload
 
+import pendulum
 import requests
 import typeguard
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from forecasting_tools.data_models.questions import (
     BinaryQuestion,
@@ -25,11 +26,15 @@ from forecasting_tools.data_models.questions import (
     NumericQuestion,
     QuestionBasicType,
 )
-from forecasting_tools.util.misc import raise_for_status_with_additional_info
+from forecasting_tools.util.misc import (
+    add_timezone_to_dates_in_base_model,
+    raise_for_status_with_additional_info,
+)
 
 logger = logging.getLogger(__name__)
 
 Q = TypeVar("Q", bound=MetaculusQuestion)
+T = TypeVar("T", bound=BaseModel)
 GroupQuestionMode = Literal["exclude", "unpack_subquestions"]
 """
 If group_question_mode is "exclude", then group questions will be removed from the list of questions.
@@ -67,6 +72,13 @@ class ApiFilter(BaseModel):
     community_prediction_exists: bool | None = None
     cp_reveal_time_gt: datetime | None = None
     cp_reveal_time_lt: datetime | None = None
+    order_by: str = (
+        "-published_time"  # Alternatives include things like "-weekly_movement" + is asc, - is desc
+    )
+
+    @model_validator(mode="after")
+    def add_timezone_to_dates(self) -> ApiFilter:
+        return add_timezone_to_dates_in_base_model(self)
 
 
 class MetaculusApi:
@@ -331,12 +343,12 @@ class MetaculusApi:
     ) -> list[BinaryQuestion]:
         logger.info(f"Retrieving {num_of_questions_to_return} benchmark questions")
         date_into_future = (
-            datetime.now() + timedelta(days=days_to_resolve_in)
+            pendulum.now() + timedelta(days=days_to_resolve_in)
             if days_to_resolve_in
             else None
         )
         date_into_past = (
-            datetime.now() - timedelta(days=max_days_since_opening)
+            pendulum.now() - timedelta(days=max_days_since_opening)
             if max_days_since_opening
             else None
         )
@@ -632,7 +644,7 @@ class MetaculusApi:
         url_params: dict[str, Any] = {
             "limit": cls.MAX_QUESTIONS_FROM_QUESTION_API_PER_REQUEST,
             "offset": offset,
-            "order_by": "-published_at",
+            "order_by": api_filter.order_by,
             "with_cp": "true",
         }
 
@@ -793,6 +805,11 @@ class MetaculusApi:
         date_gt: datetime | None,
         date_lt: datetime | None,
     ) -> list[Q]:
+        if date_gt and date_gt.tzinfo is None:
+            date_gt = date_gt.replace(tzinfo=pendulum.timezone("UTC"))
+        if date_lt and date_lt.tzinfo is None:
+            date_lt = date_lt.replace(tzinfo=pendulum.timezone("UTC"))
+
         filtered_questions: list[Q] = []
         for question in questions:
             question_date = date_field_getter(question)

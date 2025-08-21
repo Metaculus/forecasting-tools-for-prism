@@ -10,20 +10,18 @@ import random
 import re
 import time
 from datetime import datetime, timedelta
-from typing import Any, Callable, Literal, TypeVar, overload
+from typing import Any, Callable, List, Literal, TypeVar, overload
 
 import pendulum
 import requests
 import typeguard
 from pydantic import BaseModel, model_validator
 
+from forecasting_tools.data_models.coherence_link import CoherenceLink
+from forecasting_tools.data_models.data_organizer import DataOrganizer
 from forecasting_tools.data_models.questions import (
     BinaryQuestion,
-    DateQuestion,
-    DiscreteQuestion,
     MetaculusQuestion,
-    MultipleChoiceQuestion,
-    NumericQuestion,
     QuestionBasicType,
 )
 from forecasting_tools.util.misc import (
@@ -139,6 +137,51 @@ class MetaculusApi:
             **cls._get_auth_headers(),  # type: ignore
         )
         logger.info(f"Posted comment on post {post_id}")
+        raise_for_status_with_additional_info(response)
+
+    @classmethod
+    def post_question_link(
+        cls,
+        question1_id: int,
+        question2_id: int,
+        direction: str,
+        strength: str,
+        link_type: str,
+    ) -> int:
+        response = requests.post(
+            f"{cls.API_BASE_URL}/coherence/links/create/",
+            json={
+                "question1_id": question1_id,
+                "question2_id": question2_id,
+                "direction": direction,
+                "strength": strength,
+                "type": link_type,
+            },
+            **cls._get_auth_headers(),  # type: ignore
+        )
+        logger.info(f"Posted question link between {question1_id} and {question2_id}")
+        raise_for_status_with_additional_info(response)
+        content = json.loads(response.content)
+        return content["id"]
+
+    @classmethod
+    def get_links_for_question(cls, question_id: int) -> List[CoherenceLink]:
+        response = requests.get(
+            f"{cls.API_BASE_URL}/coherence/links/{question_id}",
+            **cls._get_auth_headers(),  # type: ignore
+        )
+        raise_for_status_with_additional_info(response)
+        content = json.loads(response.content)["data"]
+        links = [CoherenceLink.from_metaculus_api_json(link) for link in content]
+        return links
+
+    @classmethod
+    def delete_question_link(cls, link_id: int):
+        response = requests.delete(
+            f"{cls.API_BASE_URL}/coherence/links/{link_id}/delete",
+            **cls._get_auth_headers(),  # type: ignore
+        )
+        logger.info(f"Deleted question link with id {link_id}")
         raise_for_status_with_additional_info(response)
 
     @classmethod
@@ -464,7 +507,7 @@ class MetaculusApi:
                 questions = cls._unpack_group_question(post_json_from_api)
                 return questions
         else:
-            return [cls._non_group_post_json_to_question(post_json_from_api)]
+            return [DataOrganizer.get_question_from_post_json(post_json_from_api)]
 
     @classmethod
     def _unpack_group_question(
@@ -484,29 +527,10 @@ class MetaculusApi:
             new_post_json = copy.deepcopy(post_json_from_api)
             new_post_json["question"] = new_question_json
 
-            question_obj = cls._non_group_post_json_to_question(new_post_json)
+            question_obj = DataOrganizer.get_question_from_post_json(new_post_json)
             question_obj.question_ids_of_group = question_ids.copy()
             questions.append(question_obj)
         return questions
-
-    @classmethod
-    def _non_group_post_json_to_question(cls, post_json: dict) -> MetaculusQuestion:
-        assert "question" in post_json, "Question key not found in API JSON"
-        question_type_string = post_json["question"]["type"]  # type: ignore
-        if question_type_string == BinaryQuestion.get_api_type_name():
-            question_type = BinaryQuestion
-        elif question_type_string == DiscreteQuestion.get_api_type_name():
-            question_type = DiscreteQuestion
-        elif question_type_string == NumericQuestion.get_api_type_name():
-            question_type = NumericQuestion
-        elif question_type_string == MultipleChoiceQuestion.get_api_type_name():
-            question_type = MultipleChoiceQuestion
-        elif question_type_string == DateQuestion.get_api_type_name():
-            question_type = DateQuestion
-        else:
-            raise ValueError(f"Unknown question type: {question_type_string}")
-        question = question_type.from_metaculus_api_json(post_json)
-        return question
 
     @classmethod
     async def _filter_using_randomized_strategy(

@@ -20,6 +20,7 @@ from forecasting_tools.data_models.questions import (
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 from forecasting_tools.helpers.asknews_searcher import AskNewsSearcher
 from forecasting_tools.helpers.metaculus_api import MetaculusApi
+from forecasting_tools.helpers.prediction_extractor import PredictionExtractor
 from forecasting_tools.helpers.structure_output import structure_output
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,7 @@ class FallTemplateBot2025(ForecastBot):
     """
 
     _max_concurrent_questions = (
-        2  # Set this to whatever works for your search-provider/ai-model rate limits
+        1  # Set this to whatever works for your search-provider/ai-model rate limits
     )
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
 
@@ -129,23 +130,13 @@ class FallTemplateBot2025(ForecastBot):
 
             if isinstance(researcher, GeneralLlm):
                 research = await researcher.invoke(prompt)
-            elif researcher == "asknews/news-summaries":
-                research = await AskNewsSearcher().get_formatted_news_async(
-                    question.question_text
-                )
-            elif researcher == "asknews/deep-research/medium-depth":
-                research = await AskNewsSearcher().get_formatted_deep_research(
-                    question.question_text,
-                    sources=["asknews", "google"],
-                    search_depth=2,
-                    max_depth=4,
-                )
-            elif researcher == "asknews/deep-research/high-depth":
-                research = await AskNewsSearcher().get_formatted_deep_research(
-                    question.question_text,
-                    sources=["asknews", "google"],
-                    search_depth=4,
-                    max_depth=6,
+            elif (
+                researcher == "asknews/news-summaries"
+                or researcher == "asknews/deep-research/medium-depth"
+                or researcher == "asknews/deep-research/high-depth"
+            ):
+                research = await AskNewsSearcher().call_preconfigured_version(
+                    researcher, prompt
                 )
             elif researcher.startswith("smart-searcher"):
                 model_name = researcher.removeprefix("smart-searcher/")
@@ -157,7 +148,7 @@ class FallTemplateBot2025(ForecastBot):
                     use_advanced_filters=False,
                 )
                 research = await searcher.invoke(prompt)
-            elif not researcher or researcher == "None":
+            elif not researcher or researcher == "None" or researcher == "no_research":
                 research = ""
             else:
                 research = await self.get_llm("researcher", "llm").invoke(prompt)
@@ -200,11 +191,28 @@ class FallTemplateBot2025(ForecastBot):
             The last thing you write is your final answer as: "Probability: ZZ%", 0-100
             """
         )
+
+        return await self._binary_prompt_to_forecast(question, prompt)
+
+    async def _binary_prompt_to_forecast(
+        self,
+        question: BinaryQuestion,
+        prompt: str,
+        double_check_extraction: bool = False,
+    ) -> ReasonedPrediction[float]:
         reasoning = await self.get_llm("default", "llm").invoke(prompt)
         logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
         binary_prediction: BinaryPrediction = await structure_output(
             reasoning, BinaryPrediction, model=self.get_llm("parser", "llm")
         )
+        if double_check_extraction:
+            redundant_extraction = PredictionExtractor.extract_last_percentage_value(
+                reasoning
+            )
+            assert (
+                abs(redundant_extraction - binary_prediction.prediction_in_decimal)
+                < 0.001
+            ), f"Redundant extraction {redundant_extraction} does not match binary prediction {binary_prediction.prediction_in_decimal}"
         decimal_pred = max(0.01, min(0.99, binary_prediction.prediction_in_decimal))
 
         logger.info(
@@ -252,6 +260,14 @@ class FallTemplateBot2025(ForecastBot):
             Option_N: Probability_N
             """
         )
+        return await self._multiple_choice_prompt_to_forecast(question, prompt)
+
+    async def _multiple_choice_prompt_to_forecast(
+        self,
+        question: MultipleChoiceQuestion,
+        prompt: str,
+        double_check_extraction: bool = False,
+    ) -> ReasonedPrediction[PredictedOptionList]:
         parsing_instructions = clean_indents(
             f"""
             Make sure that all option names are one of the following:
@@ -267,6 +283,32 @@ class FallTemplateBot2025(ForecastBot):
             model=self.get_llm("parser", "llm"),
             additional_instructions=parsing_instructions,
         )
+        if double_check_extraction:
+            redundant_extraction = (
+                PredictionExtractor.extract_option_list_with_percentage_afterwards(
+                    reasoning, question.options
+                )
+            )
+            for redundant_prediction in redundant_extraction.predicted_options:
+                matching_original_option = next(
+                    (
+                        option
+                        for option in predicted_option_list.predicted_options
+                        if option.option_name == redundant_prediction.option_name
+                    ),
+                    None,
+                )
+                assert (
+                    matching_original_option is not None
+                ), f"Matching original option not found for {redundant_prediction.option_name}"
+                assert (
+                    abs(
+                        redundant_prediction.probability
+                        - matching_original_option.probability
+                    )
+                    < 0.001
+                ), f"Redundant extraction {redundant_prediction.probability} does not match original option {matching_original_option.probability} for option {redundant_prediction.option_name}"
+
         logger.info(
             f"Forecasted URL {question.page_url} with prediction: {predicted_option_list}"
         )
@@ -330,11 +372,56 @@ class FallTemplateBot2025(ForecastBot):
             "
             """
         )
+        return await self._numeric_prompt_to_forecast(question, prompt)
+
+    async def _numeric_prompt_to_forecast(
+        self,
+        question: NumericQuestion,
+        prompt: str,
+        double_check_extraction: bool = False,
+    ) -> ReasonedPrediction[NumericDistribution]:
         reasoning = await self.get_llm("default", "llm").invoke(prompt)
         logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
-        percentile_list: list[Percentile] = await structure_output(
-            reasoning, list[Percentile], model=self.get_llm("parser", "llm")
+        parsing_instructions = clean_indents(
+            f"""
+            The text given to you is trying to give a forecast distribution for a numeric question.
+            - This text is trying to answer the numeric question: "{question.question_text}".
+            - When parsing the text, please make sure to give the values (the ones assigned to percentiles) in terms of the correct units.
+            - The units for the forecast are: {question.unit_of_measure}
+            - Your work will be shown publicly with these units stated verbatim after the numbers your parse.
+            - As an example, someone else guessed that the answer will be between {question.lower_bound} {question.unit_of_measure} and {question.upper_bound} {question.unit_of_measure}.
+            - If percentiles are not explicitly given (e.g. only a single value is given) please don't return a parsed output, but rather indicate that the answer is not explicitly given in the text.
+            - Turn any values that are in scientific notation into regular numbers.
+            """
         )
+        percentile_list: list[Percentile] = await structure_output(
+            reasoning,
+            list[Percentile],
+            model=self.get_llm("parser", "llm"),
+            additional_instructions=parsing_instructions,
+        )
+
+        if double_check_extraction:
+            redundant_extraction = PredictionExtractor.extract_numeric_distribution_from_list_of_percentile_number_and_probability(
+                reasoning, question
+            )
+            for redundant_percentile in redundant_extraction.declared_percentiles:
+                matching_original_percentile = next(
+                    (
+                        percentile
+                        for percentile in percentile_list
+                        if abs(percentile.percentile - redundant_percentile.percentile)
+                        < 0.001
+                    ),
+                    None,
+                )
+                assert (
+                    matching_original_percentile is not None
+                ), f"Matching original percentile not found for {redundant_percentile.percentile}"
+                assert (
+                    abs(redundant_percentile.value - matching_original_percentile.value)
+                    < 0.001
+                ), f"Redundant extraction {redundant_percentile.value} does not match original percentile {matching_original_percentile.value} for percentile {redundant_percentile.percentile}"
         prediction = NumericDistribution.from_question(percentile_list, question)
         logger.info(
             f"Forecasted URL {question.page_url} with prediction: {prediction.declared_percentiles}"

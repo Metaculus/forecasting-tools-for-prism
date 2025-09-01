@@ -1,13 +1,21 @@
 from forecasting_tools.data_models.data_organizer import DataOrganizer
 from forecasting_tools.data_models.questions import MetaculusQuestion
+from forecasting_tools.forecast_bots.experiments.q1_veritas_bot import Q1VeritasBot
 from forecasting_tools.forecast_bots.experiments.q2t_w_decomposition import (
     Q2TemplateBotWithDecompositionV1,
     Q2TemplateBotWithDecompositionV2,
 )
+from forecasting_tools.forecast_bots.experiments.q4_veritas_bot import Q4VeritasBot
 from forecasting_tools.forecast_bots.forecast_bot import ForecastBot
 from forecasting_tools.forecast_bots.main_bot import MainBot
+from forecasting_tools.forecast_bots.official_bots.fall_research_only_bot import (
+    FallResearchOnlyBot2025,
+)
 from forecasting_tools.forecast_bots.official_bots.fall_template_bot import (
     FallTemplateBot2025,
+)
+from forecasting_tools.forecast_bots.official_bots.gpt_4_1_optimized_bot import (
+    GPT41OptimizedBot,
 )
 from forecasting_tools.forecast_bots.official_bots.q1_template_bot import (
     Q1TemplateBot2025,
@@ -21,9 +29,7 @@ from forecasting_tools.forecast_bots.official_bots.q3_template_bot import (
 from forecasting_tools.forecast_bots.official_bots.q4_template_bot import (
     Q4TemplateBot2024,
 )
-from forecasting_tools.forecast_bots.other.q1_veritas_bot import Q1VeritasBot
-from forecasting_tools.forecast_bots.other.q4_veritas_bot import Q4VeritasBot
-from forecasting_tools.forecast_bots.other.uniform_probability_bot import (
+from forecasting_tools.forecast_bots.official_bots.uniform_probability_bot import (
     UniformProbabilityBot,
 )
 from forecasting_tools.forecast_bots.template_bot import TemplateBot
@@ -43,11 +49,18 @@ def get_all_important_bot_classes() -> list[type[ForecastBot]]:
         UniformProbabilityBot,
         Q2TemplateBotWithDecompositionV1,
         Q2TemplateBotWithDecompositionV2,
+        FallResearchOnlyBot2025,
+        GPT41OptimizedBot,
     ]
 
 
 def get_all_bots_for_doing_cheap_tests() -> list[ForecastBot]:
-    return [TemplateBot(), UniformProbabilityBot()]
+    return [
+        TemplateBot(),
+        FallResearchOnlyBot2025(),
+        GPT41OptimizedBot(),
+        UniformProbabilityBot(),
+    ]
 
 
 def get_all_bot_question_type_pairs_for_cheap_tests() -> (

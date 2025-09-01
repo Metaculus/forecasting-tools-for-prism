@@ -64,6 +64,8 @@ class NumericDistribution(BaseModel):
                 raise ValueError("Percentiles must be in strictly increasing order")
             if percentiles[i].value > percentiles[i + 1].value:
                 raise ValueError("Values must be in strictly increasing order")
+        if len(percentiles) < 2:
+            raise ValueError("NumericDistribution must have at least 2 percentiles")
         return percentiles
 
     @property
@@ -276,7 +278,7 @@ class NumericReport(ForecastReport):
         )
         readable = "Probability distribution:\n"
         for percentile in representative_percentiles:
-            readable += f"- {percentile.percentile:.2%} chance of value below {percentile.value}\n"
+            readable += f"- {percentile.percentile:.2%} chance of value below {round(percentile.value,4)}\n"
         return readable
 
     async def publish_report_to_metaculus(self) -> None:

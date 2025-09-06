@@ -105,6 +105,7 @@ class FallTemplateBot2025(ForecastBot):
         1  # Set this to whatever works for your search-provider/ai-model rate limits
     )
     _concurrency_limiter = asyncio.Semaphore(_max_concurrent_questions)
+    _structure_output_validation_samples = 2
 
     async def run_research(self, question: MetaculusQuestion) -> str:
         async with self._concurrency_limiter:
@@ -203,7 +204,10 @@ class FallTemplateBot2025(ForecastBot):
         reasoning = await self.get_llm("default", "llm").invoke(prompt)
         logger.info(f"Reasoning for URL {question.page_url}: {reasoning}")
         binary_prediction: BinaryPrediction = await structure_output(
-            reasoning, BinaryPrediction, model=self.get_llm("parser", "llm")
+            reasoning,
+            BinaryPrediction,
+            model=self.get_llm("parser", "llm"),
+            num_validation_samples=self._structure_output_validation_samples,
         )
         if double_check_extraction:
             redundant_extraction = PredictionExtractor.extract_last_percentage_value(
@@ -216,7 +220,7 @@ class FallTemplateBot2025(ForecastBot):
         decimal_pred = max(0.01, min(0.99, binary_prediction.prediction_in_decimal))
 
         logger.info(
-            f"Forecasted URL {question.page_url} with prediction: {decimal_pred}"
+            f"Forecasted URL {question.page_url} with prediction: {decimal_pred}."
         )
         return ReasonedPrediction(prediction_value=decimal_pred, reasoning=reasoning)
 
@@ -281,6 +285,7 @@ class FallTemplateBot2025(ForecastBot):
             text_to_structure=reasoning,
             output_type=PredictedOptionList,
             model=self.get_llm("parser", "llm"),
+            num_validation_samples=self._structure_output_validation_samples,
             additional_instructions=parsing_instructions,
         )
         if double_check_extraction:
@@ -310,7 +315,7 @@ class FallTemplateBot2025(ForecastBot):
                 ), f"Redundant extraction {redundant_prediction.probability} does not match original option {matching_original_option.probability} for option {redundant_prediction.option_name}"
 
         logger.info(
-            f"Forecasted URL {question.page_url} with prediction: {predicted_option_list}"
+            f"Forecasted URL {question.page_url} with prediction: {predicted_option_list}."
         )
         return ReasonedPrediction(
             prediction_value=predicted_option_list, reasoning=reasoning
@@ -347,7 +352,7 @@ class FallTemplateBot2025(ForecastBot):
             {upper_bound_message}
 
             Formatting Instructions:
-            - Please notice the units requested (e.g. whether you represent a number as 1,000,000 or 1 million).
+            - Please notice the units requested and give your answer in these units (e.g. whether you represent a number as 1,000,000 or 1 million).
             - Never use scientific notation.
             - Always start with a smaller number (more negative if negative) and then increase from there
 
@@ -389,7 +394,8 @@ class FallTemplateBot2025(ForecastBot):
             - When parsing the text, please make sure to give the values (the ones assigned to percentiles) in terms of the correct units.
             - The units for the forecast are: {question.unit_of_measure}
             - Your work will be shown publicly with these units stated verbatim after the numbers your parse.
-            - As an example, someone else guessed that the answer will be between {question.lower_bound} {question.unit_of_measure} and {question.upper_bound} {question.unit_of_measure}.
+            - As an example, someone else guessed that the answer will be between {question.lower_bound} {question.unit_of_measure} and {question.upper_bound} {question.unit_of_measure}, so the numbers parsed from and answer like this would be verbatim "{question.lower_bound}" and "{question.upper_bound}".
+            - If the answer doesn't give the answer in the correct units, you should parse it in the right units. For instance if the answer gives numbers as $500,000,000 and units are "B $" then you should parse the answer as 0.5 (since $500,000,000 is $0.5 billion).
             - If percentiles are not explicitly given (e.g. only a single value is given) please don't return a parsed output, but rather indicate that the answer is not explicitly given in the text.
             - Turn any values that are in scientific notation into regular numbers.
             """
@@ -399,6 +405,7 @@ class FallTemplateBot2025(ForecastBot):
             list[Percentile],
             model=self.get_llm("parser", "llm"),
             additional_instructions=parsing_instructions,
+            num_validation_samples=self._structure_output_validation_samples,
         )
 
         if double_check_extraction:
@@ -424,7 +431,7 @@ class FallTemplateBot2025(ForecastBot):
                 ), f"Redundant extraction {redundant_percentile.value} does not match original percentile {matching_original_percentile.value} for percentile {redundant_percentile.percentile}"
         prediction = NumericDistribution.from_question(percentile_list, question)
         logger.info(
-            f"Forecasted URL {question.page_url} with prediction: {prediction.declared_percentiles}"
+            f"Forecasted URL {question.page_url} with prediction: {prediction.declared_percentiles}."
         )
         return ReasonedPrediction(prediction_value=prediction, reasoning=reasoning)
 
@@ -441,18 +448,14 @@ class FallTemplateBot2025(ForecastBot):
             lower_bound_number = question.lower_bound
 
         if question.open_upper_bound:
-            upper_bound_message = f"The question creator thinks the number is likely not higher than {upper_bound_number}."
+            upper_bound_message = f"The question creator thinks the number is likely not higher than {upper_bound_number} {question.unit_of_measure}."
         else:
-            upper_bound_message = (
-                f"The outcome can not be higher than {upper_bound_number}."
-            )
+            upper_bound_message = f"The outcome can not be higher than {upper_bound_number} {question.unit_of_measure}."
 
         if question.open_lower_bound:
-            lower_bound_message = f"The question creator thinks the number is likely not lower than {lower_bound_number}."
+            lower_bound_message = f"The question creator thinks the number is likely not lower than {lower_bound_number} {question.unit_of_measure}."
         else:
-            lower_bound_message = (
-                f"The outcome can not be lower than {lower_bound_number}."
-            )
+            lower_bound_message = f"The outcome can not be lower than {lower_bound_number} {question.unit_of_measure}."
         return upper_bound_message, lower_bound_message
 
 

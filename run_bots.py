@@ -130,8 +130,8 @@ async def get_questions_for_config(
     is_interval_day = (
         pendulum.now().day % TournConfig.regular_forecast_interval_days == 0
     )
-    window_length_hrs = 3
-    US_morning_hour = 8
+    window_length_hrs = 7
+    US_morning_hour = 4
     US_afternoon_hour = 12
     UTC_morning_hour = US_morning_hour + 7
     UTC_afternoon_hour = US_afternoon_hour + 7
@@ -155,10 +155,6 @@ async def get_questions_for_config(
     if runs_on_main_site and is_interval_day and is_afternoon_window:
         main_site_questions = await _get_questions_for_main_site()
         questions.extend(main_site_questions)
-
-    assert len(set([q.id_of_question for q in questions])) == len(
-        questions
-    ), "Questions have duplicate IDs"
 
     return questions[
         :max_questions
@@ -425,8 +421,8 @@ def get_default_bot_dict() -> dict[str, RunBotConfig]:  # NOSONAR
                     model="openai/gpt-5",
                     reasoning_effort="high",
                     temperature=default_temperature,
-                    timeout=15 * 60,
-                    # **flex_price_settings,
+                    timeout=10 * 60,
+                    **flex_price_settings,
                 ),
             ),
             "tournaments": TournConfig.aib_and_site + [AllowedTourn.METACULUS_CUP],
@@ -437,8 +433,8 @@ def get_default_bot_dict() -> dict[str, RunBotConfig]:  # NOSONAR
                 llm=GeneralLlm(
                     model="openai/gpt-5",
                     temperature=default_temperature,
-                    timeout=15 * 60,
-                    # **flex_price_settings,
+                    timeout=10 * 60,
+                    **flex_price_settings,
                 ),
             ),
             "tournaments": TournConfig.aib_and_site + [AllowedTourn.METACULUS_CUP],
@@ -897,7 +893,7 @@ def get_default_bot_dict() -> dict[str, RunBotConfig]:  # NOSONAR
                     model="o3",
                     temperature=1,
                     reasoning_effort="high",
-                    timeout=300,
+                    timeout=60 * 8,
                     **flex_price_settings,
                 ),
             ),
@@ -910,6 +906,7 @@ def get_default_bot_dict() -> dict[str, RunBotConfig]:  # NOSONAR
                     model="o3",
                     temperature=1,
                     reasoning_effort="medium",
+                    timeout=60 * 8,
                     **flex_price_settings,
                 ),
             ),

@@ -55,7 +55,7 @@ def create_mock_questions() -> list[MetaculusQuestion]:
                 "question": {
                     "my_forecasts": {
                         "latest": {
-                            "timestamp": pendulum.now().subtract(days=20).timestamp()
+                            "start_time": pendulum.now().subtract(days=20).timestamp()
                         }
                     }
                 }
@@ -66,7 +66,7 @@ def create_mock_questions() -> list[MetaculusQuestion]:
                 "question": {
                     "my_forecasts": {
                         "latest": {
-                            "timestamp": pendulum.now().subtract(days=1).timestamp()
+                            "start_time": pendulum.now().subtract(days=1).timestamp()
                         }
                     }
                 }
@@ -86,24 +86,24 @@ def mock_metaculus_api_call(
 
 
 def create_test_cases() -> list[tuple[list[AllowedTourn], datetime, int]]:
+    out_of_hours = 5
     morning_hour = 11
     afternoon_hour = 19
-    night_hour = 22
     dates = [
         pendulum.datetime(2025, 5, 11, morning_hour + 1, 0, 0),
         pendulum.datetime(2025, 5, 11, afternoon_hour + 1, 0, 0),
-        pendulum.datetime(2025, 5, 11, night_hour + 1, 0, 0),
+        pendulum.datetime(2025, 5, 11, out_of_hours + 1, 0, 0),
         pendulum.datetime(2025, 5, 12, morning_hour + 1, 0, 0),
         pendulum.datetime(2025, 5, 12, afternoon_hour + 1, 0, 0),
-        pendulum.datetime(2025, 5, 12, night_hour + 1, 0, 0),
+        pendulum.datetime(2025, 5, 12, out_of_hours + 1, 0, 0),
         pendulum.datetime(2025, 5, 13, morning_hour + 1, 0, 0),
         pendulum.datetime(2025, 5, 13, afternoon_hour + 1, 0, 0),
-        pendulum.datetime(2025, 5, 13, night_hour + 1, 0, 0),
+        pendulum.datetime(2025, 5, 13, out_of_hours + 1, 0, 0),
     ]
     configs = [
         TournConfig.aib_only,
         [AllowedTourn.METACULUS_CUP],
-        TournConfig.site_only,
+        TournConfig.main_site_tourns,
         # TournConfig.aib_and_site,
         TournConfig.everything,
     ]
@@ -116,7 +116,7 @@ def create_test_cases() -> list[tuple[list[AllowedTourn], datetime, int]]:
                 set([t for t in config if t in TournConfig.every_x_days_tourns])
             )
             num_main_site_tourns = len(
-                set([t for t in config if t in TournConfig.site_only])
+                set([t for t in config if t in TournConfig.main_site_tourns])
             )
             assert (
                 num_aib_tourns + num_regularly_forecasted_tourns + num_main_site_tourns

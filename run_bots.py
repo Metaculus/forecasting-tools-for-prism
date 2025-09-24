@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import logging
 import os
+from datetime import datetime
 from enum import Enum
 from typing import Literal
 
@@ -43,6 +44,43 @@ default_num_forecasts_for_research_only_bot = 3
 structure_output_model = DEFAULT_STRUCTURE_OUTPUT_MODEL
 
 
+class ScheduleConfig:
+    regular_forecast_interval_days: int = 3
+    min_main_site_forecast_interval_days: int = 7
+
+    window_length_hrs = 2
+    US_morning_hour = 4  # 4am MT
+    US_afternoon_hour = 12  # 12pm MT
+    UTC_morning_hour = US_morning_hour + 7
+    UTC_afternoon_hour = US_afternoon_hour + 7
+
+    default_max_main_site_questions_per_run = 30
+
+    @classmethod
+    def is_interval_day(cls, time: datetime | None = None) -> bool:
+        time = time or pendulum.now(tz="UTC")
+        value = time.day % cls.regular_forecast_interval_days == 0
+        return value
+
+    @classmethod
+    def is_morning_window(cls, time: datetime | None = None) -> bool:
+        time = time or pendulum.now(tz="UTC")
+        hour = time.hour
+        max_hour = cls.UTC_morning_hour + cls.window_length_hrs
+        value = cls.UTC_morning_hour <= hour < max_hour
+        return value
+
+    @classmethod
+    def is_afternoon_window(cls, time: datetime | None = None) -> bool:
+        time = time or pendulum.now(tz="UTC")
+        value = (
+            cls.UTC_afternoon_hour
+            <= time.hour
+            < cls.UTC_afternoon_hour + cls.window_length_hrs
+        )
+        return value
+
+
 class AllowedTourn(Enum):
     MINIBENCH = MetaculusApi.CURRENT_MINIBENCH_ID
     MAIN_AIB = MetaculusApi.CURRENT_AI_COMPETITION_ID
@@ -68,8 +106,6 @@ class TournConfig:
     experimental = []
     none = []
 
-    regular_forecast_interval_days: int = 3
-    min_main_site_forecast_interval_days: int = 7
     forecasts_per_main_site_question: int = 5
 
 
@@ -83,7 +119,8 @@ class RunBotConfig(BaseModel):
 
 
 async def configure_and_run_bot(
-    mode: str, max_questions_for_run: int = 25
+    mode: str,
+    max_questions_for_run: int = ScheduleConfig.default_max_main_site_questions_per_run,
 ) -> list[ForecastReport | BaseException]:
     bot_config = get_default_bot_dict()[mode]
     questions = await get_questions_for_config(
@@ -135,23 +172,6 @@ async def get_questions_for_config(
         suffix = mode_parts[1]
         assert suffix in [t.value for t in allowed_tournaments]
 
-    is_interval_day = (
-        pendulum.now().day % TournConfig.regular_forecast_interval_days == 0
-    )
-    window_length_hrs = 7
-    US_morning_hour = 4
-    US_afternoon_hour = 12
-    UTC_morning_hour = US_morning_hour + 7
-    UTC_afternoon_hour = US_afternoon_hour + 7
-    is_morning_window = (
-        UTC_morning_hour <= pendulum.now().hour < UTC_morning_hour + window_length_hrs
-    )
-    is_afternoon_window = (
-        UTC_afternoon_hour
-        <= pendulum.now().hour
-        < UTC_afternoon_hour + window_length_hrs
-    )
-
     main_site_override = (
         os.getenv("FORECAST_ON_MAIN_SITE_ALWAYS", "false").lower() == "true"
     )
@@ -163,10 +183,10 @@ async def get_questions_for_config(
     )
 
     should_forecast_on_main_site = (
-        is_interval_day and is_afternoon_window
+        ScheduleConfig.is_interval_day() and ScheduleConfig.is_afternoon_window()
     ) or main_site_override
     should_forecast_on__every_x_days__questions = (
-        is_interval_day and is_morning_window
+        ScheduleConfig.is_interval_day() and ScheduleConfig.is_morning_window()
     ) or every_x_days_override
 
     questions: list[MetaculusQuestion] = []
@@ -213,7 +233,9 @@ def _get__every_x_days__questions(
         should_forecast = (
             last_forecast_time is None
             or last_forecast_time
-            < pendulum.now().subtract(days=TournConfig.regular_forecast_interval_days)
+            < pendulum.now(tz="UTC").subtract(
+                days=ScheduleConfig.regular_forecast_interval_days
+            )
         )
         if should_forecast:
             filtered_questions.append(question)
@@ -225,7 +247,9 @@ async def _get_questions_for_main_site(
 ) -> list[MetaculusQuestion]:
     site_questions: list[MetaculusQuestion] = []
     if AllowedTourn.MAIN_SITE in main_site_tourns:
-        target_months_from_now = pendulum.now().add(days=30 * months_ahead_to_check)
+        target_months_from_now = pendulum.now(tz="UTC").add(
+            days=30 * months_ahead_to_check
+        )
         site_questions += await MetaculusApi.get_questions_matching_filter(
             ApiFilter(
                 is_in_main_feed=True,
@@ -255,12 +279,13 @@ async def _get_questions_for_main_site(
         forecast_every_x_days = round(
             max(
                 (open_lifetime / TournConfig.forecasts_per_main_site_question).days,
-                TournConfig.min_main_site_forecast_interval_days,
+                ScheduleConfig.min_main_site_forecast_interval_days,
             )
         )
         should_forecast = (
             last_forecast_time is None
-            or last_forecast_time < pendulum.now().subtract(days=forecast_every_x_days)
+            or last_forecast_time
+            < pendulum.now(tz="UTC").subtract(days=forecast_every_x_days)
         )
         if should_forecast:
             filtered_questions.append(question)

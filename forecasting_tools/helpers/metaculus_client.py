@@ -516,6 +516,8 @@ class MetaculusClient:
                 )
                 questions = self._unpack_group_question(post_json_from_api)
                 return questions
+            else:
+                raise ValueError("group_question_mode option not supported")
         else:
             return [DataOrganizer.get_question_from_post_json(post_json_from_api)]
 

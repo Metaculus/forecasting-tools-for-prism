@@ -769,6 +769,15 @@ class TestNumericForecasts:
             percentiles, question, standardize_cdf=True
         )
 
+    async def test_conditional_question(self) -> None:
+        questions = await MetaculusClient.dev().get_questions_matching_filter(
+            ApiFilter(
+                allowed_types=["conditional"],
+                group_question_mode="unpack_subquestions",
+            )
+        )
+        assert len(questions) > 0
+
     def _check_cdf_processes_and_posts_correctly(
         self,
         percentiles: list[Percentile],

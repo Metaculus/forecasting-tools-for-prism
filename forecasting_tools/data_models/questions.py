@@ -42,7 +42,9 @@ ResolutionType = (
     BinaryResolution | NumericResolution | DateResolution | MultipleChoiceResolution
 )
 
-QuestionBasicType = Literal["binary", "numeric", "multiple_choice", "date", "discrete"]
+QuestionBasicType = Literal[
+    "binary", "numeric", "multiple_choice", "date", "discrete", "conditional"
+]
 
 
 class MetaculusQuestion(BaseModel, Jsonable):

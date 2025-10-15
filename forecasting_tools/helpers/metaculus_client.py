@@ -524,8 +524,9 @@ class MetaculusClient:
                 logger.debug(
                     f"Unpacking subquestions for group question post {post_json_from_api['id']}"
                 )
-                print(post_json_from_api)
-                raise NotImplementedError("TODO: unpack conditional posts")
+                raise NotImplementedError(
+                    f"TODO: unpack conditional posts {post_json_from_api}"
+                )
         else:
             raise ValueError("group_question_mode option not supported")
 

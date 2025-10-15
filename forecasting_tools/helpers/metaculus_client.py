@@ -476,9 +476,7 @@ class MetaculusClient:
         raise_for_status_with_additional_info(response)
         data = json.loads(response.content)
         results = data["results"]
-        supported_posts = [
-            q for q in results if "notebook" not in q and "conditional" not in q
-        ]
+        supported_posts = [q for q in results if "notebook" not in q]
         removed_posts = [post for post in results if post not in supported_posts]
         if len(removed_posts) > 0:
             logger.warning(
@@ -504,22 +502,34 @@ class MetaculusClient:
     def _post_json_to_questions_while_handling_groups(
         self, post_json_from_api: dict, group_question_mode: GroupQuestionMode
     ) -> list[MetaculusQuestion]:
-        if "group_of_questions" in post_json_from_api:
-            if group_question_mode == "exclude":
+        if group_question_mode == "exclude":
+            if "group_of_questions" in post_json_from_api:
                 logger.debug(
                     f"Excluding group question post {post_json_from_api['id']}"
                 )
                 return []
-            elif group_question_mode == "unpack_subquestions":
+            if "conditional" in post_json_from_api:
+                logger.debug(
+                    f"Excluding conditional question post {post_json_from_api['id']}"
+                )
+                return []
+        elif group_question_mode == "unpack_subquestions":
+            if "group_of_questions" in post_json_from_api:
                 logger.debug(
                     f"Unpacking subquestions for group question post {post_json_from_api['id']}"
                 )
                 questions = self._unpack_group_question(post_json_from_api)
                 return questions
-            else:
-                raise ValueError("group_question_mode option not supported")
+            if "conditional" in post_json_from_api:
+                logger.debug(
+                    f"Unpacking subquestions for group question post {post_json_from_api['id']}"
+                )
+                print(post_json_from_api)
+                raise NotImplementedError("TODO: unpack conditional posts")
         else:
-            return [DataOrganizer.get_question_from_post_json(post_json_from_api)]
+            raise ValueError("group_question_mode option not supported")
+
+        return [DataOrganizer.get_question_from_post_json(post_json_from_api)]
 
     @staticmethod
     def _unpack_group_question(post_json_from_api: dict) -> list[MetaculusQuestion]:

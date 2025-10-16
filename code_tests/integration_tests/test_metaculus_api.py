@@ -775,8 +775,9 @@ class TestNumericForecasts:
                 group_question_mode="unpack_subquestions",
                 other_url_parameters={"forecast_type": "conditional"},
             ),
+            num_questions=20,
         )
-        assert len(questions) > 0
+        assert len(questions) == 20
 
     def _check_cdf_processes_and_posts_correctly(
         self,

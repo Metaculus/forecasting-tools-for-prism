@@ -535,14 +535,12 @@ class MetaculusClient:
         post_json_from_api: dict,
     ) -> list[MetaculusQuestion]:
         conditional = post_json_from_api["conditional"]
-        question_tetrad = [
-            conditional["condition"],
-            conditional["condition_child"],
+        subquestions = [
             conditional["question_yes"],
             conditional["question_no"],
         ]
         questions = []
-        for question_json in question_tetrad:
+        for question_json in subquestions:
             new_question_json = copy.deepcopy(question_json)
 
             new_post_json = copy.deepcopy(post_json_from_api)

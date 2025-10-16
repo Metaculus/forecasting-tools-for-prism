@@ -772,9 +772,9 @@ class TestNumericForecasts:
     async def test_conditional_question(self) -> None:
         questions = await MetaculusClient.dev().get_questions_matching_filter(
             ApiFilter(
-                allowed_types=["conditional"],
                 group_question_mode="unpack_subquestions",
-            )
+                other_url_parameters={"forecast_type": "conditional"},
+            ),
         )
         assert len(questions) > 0
 

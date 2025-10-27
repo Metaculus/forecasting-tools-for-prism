@@ -9,6 +9,7 @@ import os
 import random
 import re
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Callable, List, Literal, TypeVar, overload
 
@@ -21,6 +22,7 @@ from forecasting_tools.data_models.coherence_link import CoherenceLink
 from forecasting_tools.data_models.data_organizer import DataOrganizer
 from forecasting_tools.data_models.questions import (
     BinaryQuestion,
+    ConditionalQuestion,
     MetaculusQuestion,
     QuestionBasicType,
 )
@@ -57,6 +59,7 @@ class ApiFilter(BaseModel):
         "discrete",
         "conditional",
     ]
+    allowed_subquestion_types: list[QuestionBasicType] | None = None
     group_question_mode: GroupQuestionMode = "exclude"
     allowed_statuses: list[QuestionStateAsString] | None = None
     scheduled_resolve_time_gt: datetime | None = None
@@ -760,6 +763,11 @@ class MetaculusClient:
                 questions, api_filter.allowed_types
             )
 
+        if api_filter.allowed_subquestion_types is not None:
+            questions = self._filter_questions_by_subquestions_type(
+                questions, api_filter.allowed_subquestion_types
+            )
+
         if api_filter.allowed_statuses:
             questions = self._filter_by_status(questions, api_filter.allowed_statuses)
 
@@ -828,6 +836,70 @@ class MetaculusClient:
             question
             for question in questions
             if question.get_api_type_name() in allowed_types
+        ]
+
+    @staticmethod
+    def _filter_group_questions_by_subquestions_type(
+        questions: list[MetaculusQuestion], allowed_types: list[QuestionBasicType]
+    ) -> set[int]:
+        questions_by_post_id: dict[int, list[MetaculusQuestion]] = defaultdict(list)
+        for question in questions:
+            if question.question_ids_of_group is not None:
+                questions_by_post_id[question.id_of_post].append(question)
+
+        disallowed_question_ids: set[int] = set()
+        for group_questions in questions_by_post_id.values():
+            has_disallowed_type = any(
+                q.get_api_type_name() not in allowed_types for q in group_questions
+            )
+            if has_disallowed_type:
+                disallowed_question_ids.update(
+                    q.id_of_question for q in group_questions
+                )
+
+        return disallowed_question_ids
+
+    @staticmethod
+    def _filter_conditional_questions_by_subquestions_type(
+        questions: list[MetaculusQuestion], allowed_types: list[QuestionBasicType]
+    ) -> set[int]:
+        disallowed_ids: set[int] = set()
+
+        for question in questions:
+            if question.get_question_type() != "conditional":
+                continue
+            conditional_question: ConditionalQuestion = question  # type: ignore
+            subquestions = conditional_question.get_all_subquestions().values()
+            has_disallowed_type = any(
+                subquestion.get_api_type_name() not in allowed_types
+                for subquestion in subquestions
+            )
+
+            if has_disallowed_type:
+                disallowed_ids.add(question.id_of_question)
+
+        print(f"Disallowed ids: {disallowed_ids}")
+        return disallowed_ids
+
+    @staticmethod
+    def _filter_questions_by_subquestions_type(
+        questions: list[MetaculusQuestion], allowed_types: list[QuestionBasicType]
+    ) -> list[MetaculusQuestion]:
+        disallowed_group_questions = (
+            MetaculusClient._filter_group_questions_by_subquestions_type(
+                questions, allowed_types
+            )
+        )
+        disallowed_conditional_questions = (
+            MetaculusClient._filter_conditional_questions_by_subquestions_type(
+                questions, allowed_types
+            )
+        )
+        return [
+            question
+            for question in questions
+            if question.id_of_question not in disallowed_group_questions
+            and question.id_of_question not in disallowed_conditional_questions
         ]
 
     @staticmethod

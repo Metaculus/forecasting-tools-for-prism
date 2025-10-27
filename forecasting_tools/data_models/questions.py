@@ -616,6 +616,14 @@ class ConditionalQuestion(MetaculusQuestion):
             **base_question.model_dump(exclude={"question_type"}), **questions_map
         )
 
+    def get_all_subquestions(self) -> dict[str, MetaculusQuestion]:
+        return {
+            "parent": self.parent,
+            "child": self.child,
+            "question_yes": self.question_yes,
+            "question_no": self.question_no,
+        }
+
     @classmethod
     def get_api_type_name(cls) -> QuestionBasicType:
         return "conditional"

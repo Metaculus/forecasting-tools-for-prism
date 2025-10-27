@@ -771,10 +771,7 @@ class TestNumericForecasts:
 
     async def test_conditional_question(self) -> None:
         questions = await MetaculusClient.dev().get_questions_matching_filter(
-            ApiFilter(
-                group_question_mode="unpack_subquestions",
-                other_url_parameters={"forecast_type": "conditional"},
-            ),
+            ApiFilter(allowed_types=["conditional"]),
             num_questions=20,
         )
         # TODO: We should also test whether conditionals are grabbed naturally without the special `other_url_parameters` filter. However this would take a while to find a conditional on the site.

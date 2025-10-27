@@ -14,6 +14,7 @@ from forecasting_tools.data_models.numeric_report import (
 )
 from forecasting_tools.data_models.questions import (
     BinaryQuestion,
+    ConditionalQuestion,
     DateQuestion,
     DiscreteQuestion,
     MetaculusQuestion,
@@ -143,6 +144,8 @@ class DataOrganizer:
             question_type = MultipleChoiceQuestion
         elif question_type_string == DateQuestion.get_api_type_name():
             question_type = DateQuestion
+        elif question_type_string == ConditionalQuestion.get_api_type_name():
+            question_type = ConditionalQuestion
         else:
             raise ValueError(f"Unknown question type: {question_type_string}")
         question = question_type.from_metaculus_api_json(post_json)

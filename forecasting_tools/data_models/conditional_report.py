@@ -1,56 +1,60 @@
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
-from forecasting_tools.data_models.conditional_models import ConditionalPrediction
+from forecasting_tools.data_models.conditional_models import (
+    ConditionalPrediction,
+    ConditionalPredictionTypes,
+)
 from forecasting_tools.data_models.forecast_report import ForecastReport
-from forecasting_tools.data_models.questions import ConditionalQuestion
+from forecasting_tools.data_models.questions import (
+    ConditionalQuestion,
+    MetaculusQuestion,
+)
 
 
 class ConditionalReport(ForecastReport):
     question: ConditionalQuestion
     prediction: ConditionalPrediction
 
+    @staticmethod
+    async def _get_aggregates_for_question(
+        question: MetaculusQuestion, forecasts: list[ConditionalPredictionTypes]
+    ):
+        from forecasting_tools.data_models.data_organizer import DataOrganizer
+
+        parent_report_type = DataOrganizer.get_report_type_for_question_type(
+            type(question)
+        )
+        return await parent_report_type.aggregate_predictions(forecasts, question)
+
     @classmethod
     async def aggregate_predictions(
         cls, predictions: list[ConditionalPrediction], question: ConditionalQuestion
     ) -> ConditionalPrediction:
-        from forecasting_tools.data_models.data_organizer import DataOrganizer
 
         parent_forecasts = [prediction.parent for prediction in predictions]
-        parent_report_type = DataOrganizer.get_report_type_for_question_type(
-            type(question.parent)
-        )
-        aggregated_parent = await parent_report_type.aggregate_predictions(
-            parent_forecasts, question.parent
+        aggregated_parent = await cls._get_aggregates_for_question(
+            question.parent, parent_forecasts
         )
 
         child_forecasts = [prediction.child for prediction in predictions]
-        child_report_type = DataOrganizer.get_report_type_for_question_type(
-            type(question.child)
-        )
-        aggregated_child = await child_report_type.aggregate_predictions(
-            child_forecasts, question.child
+        aggregated_child = await cls._get_aggregates_for_question(
+            question.child, child_forecasts
         )
 
         yes_forecasts = [prediction.prediction_yes for prediction in predictions]
-        yes_report_type = DataOrganizer.get_report_type_for_question_type(
-            type(question.question_yes)
-        )
-        aggregated_yes = await yes_report_type.aggregate_predictions(
-            yes_forecasts, question.question_yes
+        aggregated_yes = await cls._get_aggregates_for_question(
+            question.question_yes, yes_forecasts
         )
 
         no_forecasts = [prediction.prediction_no for prediction in predictions]
-        no_report_type = DataOrganizer.get_report_type_for_question_type(
-            type(question.question_no)
-        )
-        aggregated_no = await no_report_type.aggregate_predictions(
-            no_forecasts, question.question_no
+        aggregated_no = await cls._get_aggregates_for_question(
+            question.question_no, no_forecasts
         )
 
         return ConditionalPrediction(
             parent=aggregated_parent,
             child=aggregated_child,
-            prediction_yes=aggregated_yes,
-            prediction_no=aggregated_no,
+            prediction_yes=aggregated_yes,  # type: ignore
+            prediction_no=aggregated_no,  # type: ignore
         )
 
     @classmethod

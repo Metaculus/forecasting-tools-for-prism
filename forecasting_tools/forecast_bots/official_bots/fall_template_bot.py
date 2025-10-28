@@ -8,11 +8,13 @@ from forecasting_tools.agents_and_tools.research.smart_searcher import SmartSear
 from forecasting_tools.ai_models.ai_utils.ai_misc import clean_indents
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.data_models.binary_report import BinaryPrediction
+from forecasting_tools.data_models.conditional_models import ConditionalPrediction
 from forecasting_tools.data_models.forecast_report import ReasonedPrediction
 from forecasting_tools.data_models.multiple_choice_report import PredictedOptionList
 from forecasting_tools.data_models.numeric_report import NumericDistribution, Percentile
 from forecasting_tools.data_models.questions import (
     BinaryQuestion,
+    ConditionalQuestion,
     MetaculusQuestion,
     MultipleChoiceQuestion,
     NumericQuestion,
@@ -155,6 +157,11 @@ class FallTemplateBot2025(ForecastBot):
                 research = await self.get_llm("researcher", "llm").invoke(prompt)
             logger.info(f"Found Research for URL {question.page_url}:\n{research}")
             return research
+
+    async def _run_forecast_on_conditional(
+        self, question: ConditionalQuestion, research: str
+    ) -> ReasonedPrediction[ConditionalPrediction]:
+        raise NotImplementedError("_run_forecast_on_conditional")
 
     async def _run_forecast_on_binary(
         self, question: BinaryQuestion, research: str

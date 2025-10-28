@@ -2,6 +2,7 @@ import typeguard
 from pydantic import BaseModel
 
 from forecasting_tools.data_models.binary_report import BinaryReport
+from forecasting_tools.data_models.conditional_models import ConditionalPrediction
 from forecasting_tools.data_models.forecast_report import ForecastReport
 from forecasting_tools.data_models.multiple_choice_report import (
     MultipleChoiceReport,
@@ -30,13 +31,16 @@ class TypeMapping(BaseModel):
     report_type: type[ForecastReport] | None
 
 
-PredictionTypes = NumericDistribution | PredictedOptionList | float
+PredictionTypes = (
+    NumericDistribution | PredictedOptionList | float | ConditionalPrediction
+)
 QuestionTypes = (
     NumericQuestion
     | DateQuestion
     | MultipleChoiceQuestion
     | BinaryQuestion
     | DiscreteQuestion
+    | ConditionalQuestion
 )
 ReportTypes = NumericReport | MultipleChoiceReport | BinaryReport | DiscreteReport
 

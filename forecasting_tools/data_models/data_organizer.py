@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from forecasting_tools.data_models.binary_report import BinaryReport
 from forecasting_tools.data_models.conditional_models import ConditionalPrediction
+from forecasting_tools.data_models.conditional_report import ConditionalReport
 from forecasting_tools.data_models.forecast_report import ForecastReport
 from forecasting_tools.data_models.multiple_choice_report import (
     MultipleChoiceReport,
@@ -71,6 +72,11 @@ class DataOrganizer:
             question_type=BinaryQuestion,
             test_post_id=578,  # https://www.metaculus.com/questions/578/human-extinction-by-2100/
             report_type=BinaryReport,
+        ),
+        TypeMapping(
+            question_type=ConditionalQuestion,
+            test_post_id=40379,  # https://www.metaculus.com/questions/40379
+            report_type=ConditionalReport,
         ),
     ]
 

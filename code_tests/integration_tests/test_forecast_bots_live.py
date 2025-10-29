@@ -81,7 +81,7 @@ async def test_predicts_ai_2027_tournament(bot: ForecastBot) -> None:
 
 async def test_conditional_forecasts() -> None:
     bot = TemplateBot(
-        publish_reports_to_metaculus=False,
+        publish_reports_to_metaculus=True,
         skip_previously_forecasted_questions=False,
         llms={
             "default": GeneralLlm(model="openai/o4-mini", temperature=1),

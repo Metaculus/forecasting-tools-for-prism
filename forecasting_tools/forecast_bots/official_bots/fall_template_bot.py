@@ -206,13 +206,17 @@ class FallTemplateBot2025(ForecastBot):
         yes_info = await self._make_prediction(question.question_yes, full_research)
         full_research = self._add_reasoning_to_research(full_research, yes_info, "yes")
         no_info = await self._make_prediction(question.question_no, full_research)
-        full_reasoning = str(
-            {
-                "parent_reasoning": parent_info.reasoning,
-                "child_reasoning": child_info.reasoning,
-                "yes_question_reasoning": yes_info.reasoning,
-                "no_question_reasoning": no_info.reasoning,
-            }
+        full_reasoning = clean_indents(
+            f"""
+            ## Parent Question Reasoning
+            {parent_info.reasoning}
+            ## Child Question Reasoning
+            {child_info.reasoning}
+            ## Yes Question Reasoning
+            {yes_info.reasoning}
+            ## No Question Reasoning
+            {no_info.reasoning}
+        """
         )
         # TODO: add option to affirm current parent/child forecasts
         full_prediction = ConditionalPrediction(

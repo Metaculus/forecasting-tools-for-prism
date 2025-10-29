@@ -726,13 +726,12 @@ class ForecastBot(ABC):
                 if notepad_question == question:
                     return notepad
                 if isinstance(notepad_question, ConditionalQuestion):
-                    if notepad_question.parent == question:
-                        return notepad
-                    if notepad_question.child == question:
-                        return notepad
-                    if notepad_question.question_yes == question:
-                        return notepad
-                    if notepad_question.question_no == question:
+                    if (
+                        notepad_question.parent == question
+                        or notepad_question.child == question
+                        or notepad_question.question_yes == question
+                        or notepad_question.question_no == question
+                    ):
                         return notepad
 
         raise ValueError(

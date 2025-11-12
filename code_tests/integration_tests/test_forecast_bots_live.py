@@ -1,14 +1,17 @@
 import logging
 from unittest.mock import Mock
 
+import pendulum
 import pytest
 import typeguard
 
 from code_tests.unit_tests.forecasting_test_manager import ForecastingTestManager
+from forecasting_tools import ApiFilter, MetaculusClient
 from forecasting_tools.ai_models.general_llm import GeneralLlm
 from forecasting_tools.ai_models.resource_managers.monetary_cost_manager import (
     MonetaryCostManager,
 )
+from forecasting_tools.data_models.conditional_report import ConditionalReport
 from forecasting_tools.data_models.data_organizer import DataOrganizer
 from forecasting_tools.data_models.questions import DateQuestion, MetaculusQuestion
 from forecasting_tools.forecast_bots.bot_lists import (
@@ -54,6 +57,13 @@ async def test_predicts_test_question(
 
     updated_question = MetaculusApi.get_question_by_post_id(question.id_of_post)
     assert updated_question.already_forecasted
+    ten_minutes_ago = pendulum.now().subtract(minutes=10)
+    assert (
+        updated_question.timestamp_of_my_last_forecast is not None
+    ), "Timestamp of my last forecast is None"
+    assert (
+        updated_question.timestamp_of_my_last_forecast > ten_minutes_ago
+    ), f"Timestamp of my last forecast is not recent enough: {updated_question.timestamp_of_my_last_forecast}"
 
 
 @pytest.mark.parametrize(
@@ -76,6 +86,47 @@ async def test_predicts_ai_2027_tournament(bot: ForecastBot) -> None:
         pytest.fail(f"Forecasting on ai-2027 tournament failed: {e}")
     finally:
         bot.publish_reports_to_metaculus = original_publish_status
+
+
+async def test_taiwan_tournament_uniform_probability_bot() -> None:
+    bot = UniformProbabilityBot(
+        publish_reports_to_metaculus=True, skip_previously_forecasted_questions=False
+    )
+    reports = await bot.forecast_on_tournament("taiwan")
+    bot.log_report_summary(reports)
+    assert len(reports) > 10, "Expected some reports"
+    assert all(
+        not isinstance(report, Exception) for report in reports
+    ), "Expected no exceptions"
+    assert any(
+        isinstance(report, ConditionalReport) for report in reports
+    ), "Expected some conditional reports"
+
+
+async def test_conditional_forecasts() -> None:
+    bot = TemplateBot(
+        publish_reports_to_metaculus=True,
+        skip_previously_forecasted_questions=False,
+        llms={
+            "default": GeneralLlm(model="openai/o4-mini", temperature=1),
+            "summarizer": GeneralLlm(model="openai/o4-mini", temperature=1),
+            "researcher": GeneralLlm(model="openai/o4-mini", temperature=1),
+            "parser": GeneralLlm(model="openai/o4-mini", temperature=1),
+        },
+        # TODO: Make sure that template bot uses "Dev" MetaculusClient inside the bot itself
+    )
+    questions = await MetaculusClient.dev().get_questions_matching_filter(
+        ApiFilter(allowed_types=["conditional"], allowed_subquestion_types=["binary"]),
+        num_questions=1,
+    )
+    url = "https://dev.metaculus.com/questions/40107/conditional-someone-born-before-2001-lives-to-150/"
+    url_questions = MetaculusClient.dev().get_question_by_url(
+        url, group_question_mode="unpack_subquestions"
+    )
+    url_questions = typeguard.check_type(url_questions, MetaculusQuestion)
+    questions.append(url_questions)
+    reports = await bot.forecast_questions(questions)
+    assert len(reports) == len(questions)
 
 
 async def test_collects_reports_on_open_questions(mocker: Mock) -> None:

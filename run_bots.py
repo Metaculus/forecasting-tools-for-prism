@@ -45,14 +45,14 @@ structure_output_model = DEFAULT_STRUCTURE_OUTPUT_MODEL
 
 
 class ScheduleConfig:
-    regular_forecast_interval_days: int = 3
-    min_main_site_forecast_interval_days: int = 7
+    regular_forecast_interval_days: int = 2
+    min_main_site_forecast_interval_days: int = 4
 
-    window_length_hrs = 2
-    US_morning_hour = 4  # 4am MT
-    US_afternoon_hour = 12  # 12pm MT
-    UTC_morning_hour = US_morning_hour + 7
-    UTC_afternoon_hour = US_afternoon_hour + 7
+    _window_length_hrs = 2
+    _US_morning_hour = 4  # 4am MT
+    _US_afternoon_hour = 12  # 12pm MT
+    UTC_morning_hour = _US_morning_hour + 7
+    UTC_afternoon_hour = _US_afternoon_hour + 7
 
     default_max_main_site_questions_per_run = 30
     main_site_months_ahead_to_check = 4
@@ -67,7 +67,7 @@ class ScheduleConfig:
     def is_morning_window(cls, time: datetime | None = None) -> bool:
         time = time or pendulum.now(tz="UTC")
         hour = time.hour
-        max_hour = cls.UTC_morning_hour + cls.window_length_hrs
+        max_hour = cls.UTC_morning_hour + cls._window_length_hrs
         value = cls.UTC_morning_hour <= hour < max_hour
         return value
 
@@ -77,7 +77,7 @@ class ScheduleConfig:
         value = (
             cls.UTC_afternoon_hour
             <= time.hour
-            < cls.UTC_afternoon_hour + cls.window_length_hrs
+            < cls.UTC_afternoon_hour + cls._window_length_hrs
         )
         return value
 
@@ -392,7 +392,7 @@ def get_default_bot_dict() -> dict[str, RunBotConfig]:  # NOSONAR
     sonnet_4_5_name = "anthropic/claude-sonnet-4-5-20250929"
     gemini_2_5_pro = "openrouter/google/gemini-2.5-pro"  # Used to be gemini-2.5-pro-preview (though automatically switched to regular pro when preview was deprecated)
     gemini_default_timeout = 120
-    deepnews_model = "asknews/deep-research/high-depth/claude-sonnet-4-20250514"
+    deepnews_model = "asknews/deep-research/high-depth/claude-sonnet-4-5-20250929"  # Switched from claude-sonnet-4-20250514 in Nov 2025
     roughly_sonnet_4_cost = 0.25190
 
     default_perplexity_settings: dict = {

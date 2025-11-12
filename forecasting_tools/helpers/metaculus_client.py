@@ -9,6 +9,7 @@ import os
 import random
 import re
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Callable, List, Literal, TypeVar, overload
 
@@ -21,6 +22,7 @@ from forecasting_tools.data_models.coherence_link import CoherenceLink
 from forecasting_tools.data_models.data_organizer import DataOrganizer
 from forecasting_tools.data_models.questions import (
     BinaryQuestion,
+    ConditionalQuestion,
     MetaculusQuestion,
     QuestionBasicType,
 )
@@ -55,7 +57,9 @@ class ApiFilter(BaseModel):
         "multiple_choice",
         "date",
         "discrete",
+        "conditional",
     ]
+    allowed_subquestion_types: list[QuestionBasicType] | None = None
     group_question_mode: GroupQuestionMode = "exclude"
     allowed_statuses: list[QuestionStateAsString] | None = None
     scheduled_resolve_time_gt: datetime | None = None
@@ -170,6 +174,15 @@ class MetaculusClient:
         strength: int,
         link_type: str,
     ) -> int:
+        """
+        Posts a link between questions
+        :param question1_id
+        :param question2_id
+        :param direction: +1 for positive, -1 for negative
+        :param strength: 1 for low, 2 for medium, 5 for high
+        :param link_type: only supports "causal" for now
+        :return: id of the created link
+        """
         response = requests.post(
             f"{self.base_url}/coherence/links/create/",
             json={
@@ -188,6 +201,11 @@ class MetaculusClient:
         return content["id"]
 
     def get_links_for_question(self, question_id: int) -> List[CoherenceLink]:
+        """
+        Returns all links associated with a specific question
+        direction is +1 for positive and -1 for negative
+        strength is 1 for low, 2 for medium and 5 for high
+        """
         response = requests.get(
             f"{self.base_url}/coherence/links/{question_id}",
             **self._get_auth_headers(),  # type: ignore
@@ -206,6 +224,19 @@ class MetaculusClient:
         )
         logger.info(f"Deleted question link with id {link_id}")
         raise_for_status_with_additional_info(response)
+
+    def get_needs_update_questions(
+        self, question_id: int, last_datetime: datetime
+    ) -> List[MetaculusQuestion]:
+        response = requests.get(
+            f"{self.base_url}/coherence/links/{question_id}/needs-update",
+            **self._get_auth_headers(),  # type: ignore
+            timeout=self.timeout,
+            json={"datetime": last_datetime.isoformat()},
+        )
+        raise_for_status_with_additional_info(response)
+        content = json.loads(response.content)
+        return content["questions"]
 
     def post_binary_question_prediction(
         self, question_id: int, prediction_in_decimal: float
@@ -507,49 +538,19 @@ class MetaculusClient:
                     f"Excluding group question post {post_json_from_api['id']}"
                 )
                 return []
-            if "conditional" in post_json_from_api:
-                logger.debug(
-                    f"Excluding conditional question post {post_json_from_api['id']}"
-                )
-                return []
-        elif group_question_mode == "unpack_subquestions":
-            if "group_of_questions" in post_json_from_api:
-                logger.debug(
-                    f"Unpacking subquestions for group question post {post_json_from_api['id']}"
-                )
-                questions = self._unpack_group_question(post_json_from_api)
-                return questions
-            if "conditional" in post_json_from_api:
-                logger.debug(
-                    f"Unpacking subquestions for conditional question post {post_json_from_api['id']}"
-                )
-                questions = self._unpack_conditional_question(post_json_from_api)
-                return questions
-        else:
-            raise ValueError("group_question_mode option not supported")
-
+            elif group_question_mode == "unpack_subquestions":
+                if "group_of_questions" in post_json_from_api:
+                    logger.debug(
+                        f"Unpacking subquestions for group question post {post_json_from_api['id']}"
+                    )
+                    questions = self._unpack_group_question(post_json_from_api)
+                    return questions
+            else:
+                raise ValueError("group_question_mode option not supported")
+        elif "conditional" in post_json_from_api:
+            post_json_from_api["question"] = post_json_from_api["conditional"]
+            post_json_from_api["question"]["type"] = "conditional"
         return [DataOrganizer.get_question_from_post_json(post_json_from_api)]
-
-    @staticmethod
-    def _unpack_conditional_question(
-        post_json_from_api: dict,
-    ) -> list[MetaculusQuestion]:
-        conditional = post_json_from_api["conditional"]
-        subquestions = [
-            conditional["question_yes"],
-            conditional["question_no"],
-        ]
-        questions = []
-        for question_json in subquestions:
-            new_question_json = copy.deepcopy(question_json)
-
-            new_post_json = copy.deepcopy(post_json_from_api)
-            new_post_json["question"] = new_question_json
-
-            question_obj = DataOrganizer.get_question_from_post_json(new_post_json)
-            questions.append(question_obj)
-        logger.debug("_unpack_conditional_question_obtained %s", questions)
-        return questions
 
     @staticmethod
     def _unpack_group_question(post_json_from_api: dict) -> list[MetaculusQuestion]:
@@ -707,12 +708,13 @@ class MetaculusClient:
             "offset": offset,
             "order_by": api_filter.order_by,
             "with_cp": "true",
+            "include_conditional_cps": "true",
         }
 
         if api_filter.allowed_types:
             type_filter: list[QuestionFullType] = api_filter.allowed_types  # type: ignore
             if api_filter.group_question_mode == "unpack_subquestions":
-                type_filter.append("group_of_questions")
+                type_filter.extend(["group_of_questions"])
             url_params["forecast_type"] = type_filter
 
         if api_filter.allowed_statuses:
@@ -760,6 +762,11 @@ class MetaculusClient:
         if api_filter.allowed_types:
             questions = self._filter_questions_by_type(
                 questions, api_filter.allowed_types
+            )
+
+        if api_filter.allowed_subquestion_types is not None:
+            questions = self._filter_questions_by_subquestions_type(
+                questions, api_filter.allowed_subquestion_types
             )
 
         if api_filter.allowed_statuses:
@@ -830,6 +837,69 @@ class MetaculusClient:
             question
             for question in questions
             if question.get_api_type_name() in allowed_types
+        ]
+
+    @staticmethod
+    def _filter_group_questions_by_subquestions_type(
+        questions: list[MetaculusQuestion], allowed_types: list[QuestionBasicType]
+    ) -> set[int]:
+        questions_by_post_id: dict[int, list[MetaculusQuestion]] = defaultdict(list)
+        for question in questions:
+            if question.question_ids_of_group is not None:
+                questions_by_post_id[question.id_of_post].append(question)
+
+        disallowed_question_ids: set[int] = set()
+        for group_questions in questions_by_post_id.values():
+            has_disallowed_type = any(
+                q.get_api_type_name() not in allowed_types for q in group_questions
+            )
+            if has_disallowed_type:
+                disallowed_question_ids.update(
+                    q.id_of_question for q in group_questions
+                )
+
+        return disallowed_question_ids
+
+    @staticmethod
+    def _filter_conditional_questions_by_subquestions_type(
+        questions: list[MetaculusQuestion], allowed_types: list[QuestionBasicType]
+    ) -> set[int]:
+        disallowed_ids: set[int] = set()
+
+        for question in questions:
+            if question.get_question_type() != "conditional":
+                continue
+            conditional_question: ConditionalQuestion = question  # type: ignore
+            subquestions = conditional_question.get_all_subquestions().values()
+            has_disallowed_type = any(
+                subquestion.get_api_type_name() not in allowed_types
+                for subquestion in subquestions
+            )
+
+            if has_disallowed_type:
+                disallowed_ids.add(question.id_of_question)
+
+        return disallowed_ids
+
+    @staticmethod
+    def _filter_questions_by_subquestions_type(
+        questions: list[MetaculusQuestion], allowed_types: list[QuestionBasicType]
+    ) -> list[MetaculusQuestion]:
+        disallowed_group_questions = (
+            MetaculusClient._filter_group_questions_by_subquestions_type(
+                questions, allowed_types
+            )
+        )
+        disallowed_conditional_questions = (
+            MetaculusClient._filter_conditional_questions_by_subquestions_type(
+                questions, allowed_types
+            )
+        )
+        return [
+            question
+            for question in questions
+            if question.id_of_question not in disallowed_group_questions
+            and question.id_of_question not in disallowed_conditional_questions
         ]
 
     @staticmethod
